@@ -39,10 +39,10 @@ export async function POST(req: Request) {
     const apellido = normalizarTexto(body?.apellido);
     const email = normalizarEmail(body?.email);
     const password = typeof body?.password === 'string' ? body.password : '';
-    const country = normalizarTexto(body?.country);
-    const phoneFull = normalizarTexto(body?.phone_full);
+    const pais = normalizarTexto(body?.pais);
+    const phoneFull = normalizarTexto(body?.telefono_completo);
 
-    if (!nombre || !apellido || !email || !password || !country) {
+    if (!nombre || !apellido || !email || !password || !pais) {
       return NextResponse.json(
         {
           ok: false,
@@ -84,9 +84,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const countryEntry = countries.find((c) => c.country === country);
+    const paisEntry = countries.find((c) => c.pais === pais);
 
-    if (!countryEntry) {
+    if (!paisEntry) {
       return NextResponse.json(
         { ok: false, error: 'El país de residencia no es válido.' },
         { status: 400 }
@@ -140,10 +140,10 @@ export async function POST(req: Request) {
           password,
           rol,
           activo,
-          created_at,
-          updated_at,
-          country,
-          phone_full
+          creado_en,
+          actualizado_en,
+          pais,
+          telefono_completo
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
@@ -157,7 +157,7 @@ export async function POST(req: Request) {
         0,
         now,
         now,
-        countryEntry.name,
+        paisEntry.name,
         phoneFullToSave,
       ],
     });

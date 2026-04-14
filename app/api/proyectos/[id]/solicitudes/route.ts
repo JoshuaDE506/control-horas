@@ -18,8 +18,8 @@ type SolicitudExistenteRow = {
   usuario_id: string;
   estado: string | null;
   mensaje: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  creado_en: string | null;
+  actualizado_en: string | null;
 };
 
 type SolicitudListadoRow = {
@@ -28,8 +28,8 @@ type SolicitudListadoRow = {
   usuario_id: string;
   estado: string | null;
   mensaje: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  creado_en: string | null;
+  actualizado_en: string | null;
   nombre: string | null;
   apellido: string | null;
   email: string | null;
@@ -65,8 +65,8 @@ function mapSolicitud(row: SolicitudExistenteRow | SolicitudListadoRow) {
     usuario_id: String(row.usuario_id),
     estado: String(row.estado ?? 'pendiente') as SolicitudEstado,
     mensaje: row.mensaje ?? null,
-    created_at: row.created_at ?? null,
-    updated_at: row.updated_at ?? null,
+    creado_en: row.creado_en ?? null,
+    actualizado_en: row.actualizado_en ?? null,
     ...(Object.prototype.hasOwnProperty.call(row, 'nombre')
       ? {
           nombre: (row as SolicitudListadoRow).nombre ?? '',
@@ -185,7 +185,7 @@ export async function POST(
     } catch {
       const existingRes = await db.execute({
         sql: `
-          SELECT id, proyecto_id, usuario_id, estado, mensaje, created_at, updated_at
+          SELECT id, proyecto_id, usuario_id, estado, mensaje, creado_en, actualizado_en
           FROM proyecto_solicitudes
           WHERE proyecto_id = ? AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
           LIMIT 1;
@@ -285,8 +285,8 @@ export async function GET(
           s.usuario_id,
           s.estado,
           s.mensaje,
-          s.created_at,
-          s.updated_at,
+          s.creado_en,
+          s.actualizado_en,
           u.nombre,
           u.apellido,
           u.email
@@ -294,7 +294,7 @@ export async function GET(
         JOIN usuarios u ON CAST(u.id AS TEXT) = CAST(s.usuario_id AS TEXT)
         WHERE s.proyecto_id = ?
           AND s.estado = 'pendiente'
-        ORDER BY s.created_at DESC;
+        ORDER BY s.creado_en DESC;
       `,
       args: [proyectoId],
     });

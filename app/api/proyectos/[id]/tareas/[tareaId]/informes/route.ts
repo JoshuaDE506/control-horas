@@ -31,8 +31,8 @@ type InformeRow = {
   tipo: string | null;
   titulo: string | null;
   descripcion: string | null;
-  archivo_url: string | null;
-  created_at: string | null;
+  url_archivo: string | null;
+  creado_en: string | null;
 };
 
 function castRows<T>(rows: unknown[]): T[] {
@@ -221,11 +221,11 @@ export async function GET(
           tipo,
           titulo,
           descripcion,
-          archivo_url,
-          created_at
+          url_archivo,
+          creado_en
         FROM tarea_informes
         WHERE tarea_id = ?
-        ORDER BY created_at DESC
+        ORDER BY creado_en DESC
       `,
       args: [String(tareaId)],
     });
@@ -237,8 +237,8 @@ export async function GET(
       tipo: normalizeTipoInforme(row.tipo),
       titulo: row.titulo ?? '',
       descripcion: row.descripcion ?? '',
-      archivo_url: row.archivo_url ?? null,
-      created_at: row.created_at ?? null,
+      url_archivo: row.url_archivo ?? null,
+      creado_en: row.creado_en ?? null,
     }));
 
     return NextResponse.json(
@@ -293,8 +293,8 @@ export async function POST(
     const descripcion =
       typeof body?.descripcion === 'string' ? body.descripcion.trim() : '';
     const archivoUrl =
-      typeof body?.archivo_url === 'string' && body.archivo_url.trim()
-        ? body.archivo_url.trim()
+      typeof body?.url_archivo === 'string' && body.url_archivo.trim()
+        ? body.url_archivo.trim()
         : null;
 
     if (!tipo) {
@@ -461,8 +461,8 @@ export async function POST(
           tipo,
           titulo,
           descripcion,
-          archivo_url,
-          created_at
+          url_archivo,
+          creado_en
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
@@ -484,7 +484,7 @@ export async function POST(
         UPDATE tareas
         SET
           ultimo_rechazo_comentario = NULL,
-          updated_at = ?
+          actualizado_en = ?
         WHERE id = ?
           AND proyecto_id = ?
       `,
@@ -532,8 +532,8 @@ export async function POST(
           tipo,
           titulo,
           descripcion,
-          archivo_url,
-          created_at
+          url_archivo,
+          creado_en
         FROM tarea_informes
         WHERE id = ?
         LIMIT 1
@@ -550,8 +550,8 @@ export async function POST(
           tipo: normalizeTipoInforme(informeRows[0].tipo),
           titulo: informeRows[0].titulo ?? '',
           descripcion: informeRows[0].descripcion ?? '',
-          archivo_url: informeRows[0].archivo_url ?? null,
-          created_at: informeRows[0].created_at ?? null,
+          url_archivo: informeRows[0].url_archivo ?? null,
+          creado_en: informeRows[0].creado_en ?? null,
         }
       : null;
 

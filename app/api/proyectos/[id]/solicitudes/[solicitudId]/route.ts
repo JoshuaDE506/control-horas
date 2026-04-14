@@ -162,7 +162,7 @@ export async function POST(
       await tx.execute({
         sql: `
           UPDATE proyecto_solicitudes
-          SET estado = ?, updated_at = ?
+          SET estado = ?, actualizado_en = ?
           WHERE id = ?;
         `,
         args: [nuevoEstado, ahora, solicitudIdNum],

@@ -1216,7 +1216,7 @@ export default function JornadaPage() {
             </div>
             <p className="font-medium text-slate-400">Sin usuarios en la tabla</p>
             <p className="mt-1 max-w-md text-sm text-slate-600">
-              Busca usuarios para supervisar y registrarlos en la fecha seleccionada
+              Busca usuarios para supervisar y registrarlos en la seleccionado_en
             </p>
           </div>
         ) : (

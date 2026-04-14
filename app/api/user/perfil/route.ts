@@ -8,12 +8,12 @@ type UserRow = {
   nombre: string | null;
   apellido: string | null;
   email: string | null;
-  country: string | null;
-  phone_full: string | null;
+  pais: string | null;
+  telefono_completo: string | null;
   rol: string | null;
   puesto: string | null;
   activo: number | string | boolean | null;
-  created_at: string | null;
+  creado_en: string | null;
 };
 
 type StatsRow = {
@@ -72,12 +72,12 @@ export async function GET(req: NextRequest) {
           nombre,
           apellido,
           email,
-          country,
-          phone_full,
+          pais,
+          telefono_completo,
           rol,
           puesto,
           activo,
-          created_at
+          creado_en
         FROM usuarios
         WHERE id = ?
         LIMIT 1
@@ -154,12 +154,12 @@ export async function GET(req: NextRequest) {
             nombre: String(userRow.nombre ?? ''),
             apellido: String(userRow.apellido ?? ''),
             email: String(userRow.email ?? ''),
-            pais: userRow.country ?? null,
-            telefono: userRow.phone_full ?? null,
+            pais: userRow.pais ?? null,
+            telefono: userRow.telefono_completo ?? null,
             rol: normalizarRol(userRow.rol),
             puesto: userRow.puesto ?? null,
             activo: normalizarActivo(userRow.activo),
-            created_at: userRow.created_at ?? null,
+            creado_en: userRow.creado_en ?? null,
           },
           stats: {
             proyectos_creados: Number(statsRow.proyectos_creados ?? 0),
@@ -255,9 +255,9 @@ export async function PATCH(req: NextRequest) {
           nombre = ?,
           apellido = ?,
           email = ?,
-          country = ?,
-          phone_full = ?,
-          updated_at = CURRENT_TIMESTAMP
+          pais = ?,
+          telefono_completo = ?,
+          actualizado_en = CURRENT_TIMESTAMP
         WHERE id = ?
       `,
       args: [

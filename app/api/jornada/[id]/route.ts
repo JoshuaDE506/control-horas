@@ -171,7 +171,7 @@ export async function PUT(
           minutos_trabajados = ?,
           estado = ?,
           motivo = ?,
-          updated_at = CURRENT_TIMESTAMP
+          actualizado_en = CURRENT_TIMESTAMP
         WHERE id = ?
           AND supervisor_id = ?
       `,

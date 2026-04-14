@@ -30,8 +30,8 @@ type TareaRow = {
   descripcion: string | null;
   prioridad: string | null;
   estado: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  creado_en: string | null;
+  actualizado_en: string | null;
   proyecto_id: number | bigint | null;
   creador_id: string | null;
   tiempo_estimado_minutos: number | bigint | null;
@@ -197,8 +197,8 @@ function mapTarea(row: TareaRow) {
     descripcion: row.descripcion ?? null,
     prioridad: parsePrioridad(row.prioridad),
     estado: parseEstado(row.estado),
-    created_at: row.created_at ?? null,
-    updated_at: row.updated_at ?? null,
+    creado_en: row.creado_en ?? null,
+    actualizado_en: row.actualizado_en ?? null,
     proyecto_id: toNumber(row.proyecto_id),
     creador_id: row.creador_id ?? null,
     tiempo_estimado_minutos: toNumber(row.tiempo_estimado_minutos),
@@ -314,8 +314,8 @@ export async function GET(
           descripcion,
           prioridad,
           estado,
-          created_at,
-          updated_at,
+          creado_en,
+          actualizado_en,
           proyecto_id,
           creador_id,
           tiempo_estimado_minutos,
@@ -323,7 +323,7 @@ export async function GET(
           permiso_edicion
         FROM tareas
         WHERE proyecto_id = ?
-        ORDER BY created_at DESC
+        ORDER BY creado_en DESC
       `,
       args: [proyectoId],
     });
@@ -507,8 +507,8 @@ export async function POST(
           descripcion,
           prioridad,
           estado,
-          created_at,
-          updated_at,
+          creado_en,
+          actualizado_en,
           proyecto_id,
           creador_id,
           tiempo_estimado_minutos,
@@ -561,8 +561,8 @@ export async function POST(
           descripcion,
           prioridad,
           estado,
-          created_at,
-          updated_at,
+          creado_en,
+          actualizado_en,
           proyecto_id,
           creador_id,
           tiempo_estimado_minutos,

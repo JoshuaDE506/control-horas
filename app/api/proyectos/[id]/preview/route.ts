@@ -20,8 +20,8 @@ type ProyectoRow = {
   fecha_fin: string | null;
   codigo_union: string | null;
   creador_id: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  creado_en: string | null;
+  actualizado_en: string | null;
 };
 
 type UsuarioBasico = {
@@ -78,7 +78,7 @@ async function fetchUsuarioBasicoById(usuarioId: string): Promise<UsuarioBasico 
 
   const r = await db.execute({
     sql: `
-      SELECT nombre, apellido, email, country AS pais
+      SELECT nombre, apellido, email, pais AS pais
       FROM usuarios
       WHERE LOWER(TRIM(CAST(id AS TEXT))) = ?
       LIMIT 1;
@@ -151,8 +151,8 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
           fecha_fin,
           codigo_union,
           creador_id,
-          created_at,
-          updated_at
+          creado_en,
+          actualizado_en
         FROM proyectos
         WHERE id = ?
         LIMIT 1;
@@ -240,13 +240,13 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
             descripcion,
             prioridad,
             estado,
-            created_at,
-            updated_at,
+            creado_en,
+            actualizado_en,
             tiempo_estimado_minutos,
             max_participantes
           FROM tareas
           WHERE proyecto_id = ?
-          ORDER BY created_at DESC
+          ORDER BY creado_en DESC
           LIMIT 25;
         `,
         args: [proyectoId],
@@ -357,7 +357,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
           apellido: creadorInfo.apellido,
           email: creadorInfo.email,
           rol: 'creador',
-          fecha_union: proyecto.created_at ?? null,
+          fecha_union: proyecto.creado_en ?? null,
         });
       } else {
         const cur = map.get(creadorId);
@@ -386,8 +386,8 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
         fecha_fin: proyecto.fecha_fin ?? null,
         creador_id: String(proyecto.creador_id ?? ''),
         creador: creadorInfo,
-        created_at: proyecto.created_at ?? null,
-        updated_at: proyecto.updated_at ?? null,
+        creado_en: proyecto.creado_en ?? null,
+        actualizado_en: proyecto.actualizado_en ?? null,
         codigo_union,
       },
       meta: {

@@ -24,8 +24,8 @@ type PreviewProyecto = {
   tiempo_estimado_minutos: number | null;
   codigo_union: string | null;
   creador_id: string;
-  created_at: string;
-  updated_at: string;
+  creado_en: string;
+  actualizado_en: string;
 };
 
 type PreviewMeta = {
@@ -287,8 +287,8 @@ export default function ProyectosPage() {
                 tiempo_estimado_minutos: previewData.proyecto.tiempo_estimado_minutos,
                 codigo_union: previewData.proyecto.codigo_union,
                 creador_id: previewData.proyecto.creador_id,
-                created_at: previewData.proyecto.created_at,
-                updated_at: previewData.proyecto.updated_at,
+                creado_en: previewData.proyecto.creado_en,
+                actualizado_en: previewData.proyecto.actualizado_en,
               }
             : null
         }
@@ -643,9 +643,9 @@ export default function ProyectosPage() {
                           />
                         </svg>
 
-                        {proyecto.created_at && (
+                        {proyecto.creado_en && (
                           <span>
-                            {new Date(proyecto.created_at).toLocaleDateString('es-ES', {
+                            {new Date(proyecto.creado_en).toLocaleDateString('es-ES', {
                               day: 'numeric',
                               month: 'short',
                               year: 'numeric',

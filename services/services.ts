@@ -15,8 +15,8 @@ export async function validateUser(
         password,
         rol,
         activo,
-        created_at,
-        updated_at
+        creado_en,
+        actualizado_en
       FROM usuarios
       WHERE email = ?
       LIMIT 1
@@ -41,8 +41,8 @@ export async function validateUser(
     email: row.email,
     rol: row.rol,
     activo: row.activo,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
+    creado_en: row.creado_en,
+    actualizado_en: row.actualizado_en,
   };
 
   return user;

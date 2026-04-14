@@ -964,9 +964,9 @@ export default function ProyectosPage() {
                                 clipRule="evenodd"
                               />
                             </svg>
-                            {proyecto.created_at && (
+                            {proyecto.creado_en && (
                               <span>
-                                {new Date(proyecto.created_at).toLocaleDateString('es-ES', {
+                                {new Date(proyecto.creado_en).toLocaleDateString('es-ES', {
                                   day: 'numeric',
                                   month: 'short',
                                   year: 'numeric',

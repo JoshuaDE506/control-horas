@@ -12,15 +12,15 @@ type ProyectoRow = {
   creador_id?: string | null;
   estado?: string | null;
   codigo_union?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
+  creado_en?: string | null;
+  actualizado_en?: string | null;
   modo_acceso?: string | null;
   visibilidad?: string | null;
   prioridad?: string | null;
   fecha_inicio?: string | null;
   fecha_fin?: string | null;
   configuracion?: string | null;
-  last_activity_at?: string | null;
+  ultima_actividad?: string | null;
   permiso_editar_proyecto?: string | null;
   permiso_gestionar_tareas?: string | null;
 };
@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
             WHERE pu.proyecto_id = p.id
               AND CAST(pu.usuario_id AS TEXT) = CAST(? AS TEXT)
           )
-        ORDER BY p.created_at DESC
+        ORDER BY p.creado_en DESC
         LIMIT ?
         OFFSET ?;
       `,

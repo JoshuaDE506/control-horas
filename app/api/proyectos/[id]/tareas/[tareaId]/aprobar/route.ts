@@ -256,7 +256,7 @@ export async function POST(
         SET estado = 'completed',
             fecha_aprobacion = ?,
             aprobado_por = ?,
-            updated_at = ?
+            actualizado_en = ?
         WHERE id = ?
           AND proyecto_id = ?
       `,

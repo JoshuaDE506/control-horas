@@ -1,5 +1,4 @@
 // app/api/proyectos/[id]/configuracion/route.ts
-// app/api/proyectos/[id]/configuracion/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -685,7 +684,7 @@ export async function PATCH(req: NextRequest, { params }: ParamsContext) {
           fecha_fin = ?,
           permiso_editar_proyecto = ?,
           permiso_gestionar_tareas = ?,
-          updated_at = CURRENT_TIMESTAMP
+          actualizado_en = CURRENT_TIMESTAMP
         WHERE id = ?
       `,
       args: [

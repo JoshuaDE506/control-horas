@@ -13,7 +13,7 @@ type Perfil = {
   rol: string;
   puesto: string;
   activo: boolean;
-  created_at: string | null;
+  creado_en: string | null;
   proyectosCreados: number;
   proyectosMiembro: number;
   tareasSeleccionadas: number;
@@ -42,7 +42,7 @@ type ProfileApiResponse = {
       rol: string;
       puesto: string | null;
       activo: boolean;
-      created_at: string | null;
+      creado_en: string | null;
     };
     stats?: {
       proyectos_creados?: number;
@@ -124,7 +124,7 @@ export default function PerfilPage() {
         rol: String(user.rol ?? 'colaborador'),
         puesto: user.puesto ?? 'Sin puesto',
         activo: Boolean(user.activo),
-        created_at: user.created_at ?? null,
+        creado_en: user.creado_en ?? null,
         proyectosCreados: Number(stats.proyectos_creados ?? 0),
         proyectosMiembro: Number(stats.proyectos_miembro ?? 0),
         tareasSeleccionadas: Number(stats.tareas_seleccionadas ?? 0),
@@ -248,8 +248,8 @@ export default function PerfilPage() {
   const pctCompletadas =
     totalTareas > 0 ? Math.round((perfil.tareasCompletadas / totalTareas) * 100) : 0;
   const rolCapitalizado = perfil.rol.charAt(0).toUpperCase() + perfil.rol.slice(1);
-  const fechaIngreso = perfil.created_at
-    ? new Date(perfil.created_at).toLocaleDateString('es-ES', {
+  const fechaIngreso = perfil.creado_en
+    ? new Date(perfil.creado_en).toLocaleDateString('es-ES', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',

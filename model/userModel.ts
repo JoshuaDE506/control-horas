@@ -9,8 +9,8 @@ export interface User {
   email: string;
   rol: string;
   activo: number;
-  created_at: string | null;
-  updated_at: string | null;
+  creado_en: string | null;
+  actualizado_en: string | null;
 }
 
 // 🔹 Ahora sí: trae el usuario REAL desde la tabla `usuarios`
@@ -24,8 +24,8 @@ export async function getUserById(id: string): Promise<User | null> {
         email,
         rol,
         activo,
-        created_at,
-        updated_at
+        creado_en,
+        actualizado_en
       FROM usuarios
       WHERE id = ?
       LIMIT 1
@@ -43,8 +43,8 @@ export async function getUserById(id: string): Promise<User | null> {
   // Por si tu DB devuelve null en fechas
   return {
     ...user,
-    created_at: user.created_at ?? null,
-    updated_at: user.updated_at ?? null,
+    creado_en: user.creado_en ?? null,
+    actualizado_en: user.actualizado_en ?? null,
   };
 }
 

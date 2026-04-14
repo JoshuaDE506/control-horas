@@ -135,7 +135,7 @@ export async function PUT(request: NextRequest) {
     await db.execute({
       sql: `
         UPDATE usuarios
-        SET nombre = ?, apellido = ?, updated_at = datetime('now')
+        SET nombre = ?, apellido = ?, actualizado_en = datetime('now')
         WHERE id = ?
       `,
       args: [nuevoNombre, nuevoApellido, sessionUser.id],

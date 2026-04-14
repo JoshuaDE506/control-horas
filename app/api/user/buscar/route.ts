@@ -1,5 +1,4 @@
 // app/api/user/buscar/route.ts
-// app/api/user/buscar/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -56,7 +55,7 @@ export async function GET(req: NextRequest) {
           apellido,
           TRIM(COALESCE(nombre, '') || ' ' || COALESCE(apellido, '')) AS nombreCompleto,
           email,
-          country AS pais,
+          pais AS pais,
           rol,
           activo,
           puesto

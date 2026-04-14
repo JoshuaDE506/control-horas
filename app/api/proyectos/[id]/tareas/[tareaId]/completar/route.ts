@@ -23,16 +23,16 @@ type TareaRow = {
 
 type AsignacionRow = {
   id: string;
-  started_at: string | null;
-  completed_at: string | null;
+  iniciado_en: string | null;
+  completado_en: string | null;
 };
 
 type RegistroHorasRow = {
   id: string;
-  started_at: string | null;
-  paused_at: string | null;
-  stopped_at: string | null;
-  total_seconds: number | bigint | null;
+  iniciado_en: string | null;
+  pausado_en: string | null;
+  detenido_en: string | null;
+  total_segundos: number | bigint | null;
   estado: string | null;
 };
 
@@ -119,7 +119,6 @@ export async function POST(
       );
     }
 
-    // 1) Proyecto
     const proyectoRes = await db.execute({
       sql: `
         SELECT id, visibilidad, modo_acceso, creador_id
@@ -186,7 +185,6 @@ export async function POST(
       );
     }
 
-    // 2) Tarea
     const tareaRes = await db.execute({
       sql: `
         SELECT id, estado
@@ -236,10 +234,9 @@ export async function POST(
 
     const now = new Date().toISOString();
 
-    // 3) Debe estar asignado activamente
     const asigRes = await db.execute({
       sql: `
-        SELECT id, started_at, completed_at
+        SELECT id, iniciado_en, completado_en
         FROM tarea_asignaciones
         WHERE tarea_id = ?
           AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
@@ -259,45 +256,42 @@ export async function POST(
       );
     }
 
-    // 4) Si no había empezado, se marca started_at también
-    if (!asig.started_at) {
+    if (!asig.iniciado_en) {
       await db.execute({
         sql: `
           UPDATE tarea_asignaciones
-          SET started_at = COALESCE(started_at, ?)
+          SET iniciado_en = COALESCE(iniciado_en, ?)
           WHERE id = ?
         `,
         args: [now, String(asig.id)],
       });
     }
 
-    // 5) Marcar participación del usuario como completada
-    if (!asig.completed_at) {
+    if (!asig.completado_en) {
       await db.execute({
         sql: `
           UPDATE tarea_asignaciones
-          SET completed_at = ?
+          SET completado_en = ?
           WHERE id = ?
         `,
         args: [now, String(asig.id)],
       });
     }
 
-    // 6) Cerrar/finalizar cronómetro del usuario en esta tarea
     const registroRes = await db.execute({
       sql: `
         SELECT
           id,
-          started_at,
-          paused_at,
-          stopped_at,
-          total_seconds,
+          iniciado_en,
+          pausado_en,
+          detenido_en,
+          total_segundos,
           estado
         FROM registro_horas
         WHERE tarea_id = ?
           AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
           AND estado IN ('activo', 'pausado')
-        ORDER BY created_at DESC
+        ORDER BY creado_en DESC
         LIMIT 1
       `,
       args: [String(tareaId), String(userId)],
@@ -308,18 +302,18 @@ export async function POST(
 
     if (registro) {
       const registroEstado = String(registro.estado ?? '').toLowerCase().trim();
-      const totalActual = toNumber(registro.total_seconds);
+      const totalActual = toNumber(registro.total_segundos);
 
-      if (registroEstado === 'activo' && registro.started_at) {
-        const extra = diffSeconds(registro.started_at, now);
+      if (registroEstado === 'activo' && registro.iniciado_en) {
+        const extra = diffSeconds(registro.iniciado_en, now);
 
         await db.execute({
           sql: `
             UPDATE registro_horas
-            SET total_seconds = ?,
-                started_at = NULL,
-                paused_at = NULL,
-                stopped_at = ?,
+            SET total_segundos = ?,
+                iniciado_en = NULL,
+                pausado_en = NULL,
+                detenido_en = ?,
                 estado = 'finalizado'
             WHERE id = ?
           `,
@@ -329,9 +323,9 @@ export async function POST(
         await db.execute({
           sql: `
             UPDATE registro_horas
-            SET started_at = NULL,
-                paused_at = NULL,
-                stopped_at = ?,
+            SET iniciado_en = NULL,
+                pausado_en = NULL,
+                detenido_en = ?,
                 estado = 'finalizado'
             WHERE id = ?
           `,
@@ -340,19 +334,17 @@ export async function POST(
       }
     }
 
-    // 7) Mover tarea a review
     await db.execute({
       sql: `
         UPDATE tareas
         SET estado = 'review',
             fecha_envio_revision = ?,
-            updated_at = ?
+            actualizado_en = ?
         WHERE id = ?
       `,
       args: [now, now, String(tareaId)],
     });
 
-    // 8) Historial
     try {
       await db.execute({
         sql: `
@@ -386,7 +378,7 @@ export async function POST(
         ok: true,
         estado: 'review',
         review_sent_at: now,
-        completed_at: now,
+        completado_en: now,
       },
       { status: 200 }
     );

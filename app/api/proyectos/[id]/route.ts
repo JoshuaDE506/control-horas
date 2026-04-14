@@ -22,7 +22,7 @@ type ProyectoRow = {
   fecha_inicio: string | null;
   fecha_fin: string | null;
   configuracion: string | null;
-  last_activity_at: string | null;
+  ultima_actividad: string | null;
   permiso_editar_proyecto: string | null;
   permiso_gestionar_tareas: string | null;
 };
@@ -179,7 +179,7 @@ export async function GET(
           p.fecha_inicio,
           p.fecha_fin,
           p.configuracion,
-          p.last_activity_at,
+          p.ultima_actividad,
           p.permiso_editar_proyecto,
           p.permiso_gestionar_tareas
         FROM proyectos p
@@ -265,7 +265,7 @@ export async function GET(
       fecha_inicio: row.fecha_inicio,
       fecha_fin: row.fecha_fin,
       configuracion: row.configuracion,
-      last_activity_at: row.last_activity_at,
+      ultima_actividad: row.ultima_actividad,
       permiso_editar_proyecto: row.permiso_editar_proyecto,
       permiso_gestionar_tareas: row.permiso_gestionar_tareas,
     };

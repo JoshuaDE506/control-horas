@@ -1,3 +1,4 @@
+// app/api/auth/reset-password/route.ts
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/database';
@@ -9,8 +10,8 @@ type UserRow = {
   nombre: string | null;
   apellido: string | null;
   password: string;
-  reset_code: string | null;
-  reset_expires: string | null;
+  codigo_recuperacion: string | null;
+  expira_codigo_recuperacion: string | null;
 };
 
 function castRows<T>(rows: unknown[]): T[] {
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
 
     const result = await db.execute({
       sql: `
-        SELECT id, email, nombre, apellido, password, reset_code, reset_expires
+        SELECT id, email, nombre, apellido, password, codigo_recuperacion, expira_codigo_recuperacion
         FROM usuarios
         WHERE email = ?
         LIMIT 1
@@ -87,14 +88,14 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!user.reset_code || !user.reset_expires) {
+    if (!user.codigo_recuperacion || !user.expira_codigo_recuperacion) {
       return NextResponse.json(
         { ok: false, error: 'No hay una solicitud de recuperación activa.' },
         { status: 400 }
       );
     }
 
-    if (user.reset_code !== code) {
+    if (user.codigo_recuperacion !== code) {
       return NextResponse.json(
         { ok: false, error: 'Código inválido.' },
         { status: 400 }
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
     }
 
     const now = Date.now();
-    const expiresAt = new Date(user.reset_expires).getTime();
+    const expiresAt = new Date(user.expira_codigo_recuperacion).getTime();
 
     if (Number.isNaN(expiresAt) || expiresAt < now) {
       return NextResponse.json(
@@ -125,7 +126,7 @@ export async function POST(req: Request) {
     await db.execute({
       sql: `
         UPDATE usuarios
-        SET password = ?, reset_code = NULL, reset_expires = NULL, updated_at = ?
+        SET password = ?, codigo_recuperacion = NULL, expira_codigo_recuperacion = NULL, actualizado_en = ?
         WHERE id = ?
       `,
       args: [hashedPassword, updatedAt, user.id],

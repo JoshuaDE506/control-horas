@@ -835,7 +835,7 @@ type TareaRegistroRaw = {
   fecha_aprobacion?: string | null;
 
   fecha_creacion?: string | null;
-  created_at?: string | null;
+  creado_en?: string | null;
 };
 
 type TareaRegistro = {
@@ -973,7 +973,7 @@ function mapTareaRegistro(raw: TareaRegistroRaw): TareaRegistro {
       raw.fecha_completada ??
       raw.fecha_aprobacion ??
       null,
-    fecha_creacion: raw.fecha_creacion ?? raw.created_at ?? '',
+    fecha_creacion: raw.fecha_creacion ?? raw.creado_en ?? '',
   };
 }
 

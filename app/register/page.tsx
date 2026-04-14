@@ -22,8 +22,8 @@ export default function RegisterPage() {
     email: '',
     password: '',
     telefono: '',
-    countryIso: '',
-    phoneCountryIso: '',
+    paisIso: '',
+    phonepaisIso: '',
   });
 
   const [error, setError] = useState('');
@@ -33,12 +33,12 @@ export default function RegisterPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  const selectedCountry = countries.find(
-    (c) => c.country === formData.countryIso
+  const selectedpais = countries.find(
+    (c) => c.pais === formData.paisIso
   );
 
-  const selectedPhoneCountry = countries.find(
-    (c) => c.country === formData.phoneCountryIso
+  const selectedPhonepais = countries.find(
+    (c) => c.pais === formData.phonepaisIso
   );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,13 +59,13 @@ export default function RegisterPage() {
     setError('');
     setLoading(true);
 
-    if (!formData.countryIso) {
+    if (!formData.paisIso) {
       setError('Debes seleccionar tu país de residencia.');
       setLoading(false);
       return;
     }
 
-    if (!selectedCountry) {
+    if (!selectedpais) {
       setError('El país de residencia no es válido.');
       setLoading(false);
       return;
@@ -86,7 +86,7 @@ export default function RegisterPage() {
         return;
       }
 
-      if (!formData.phoneCountryIso) {
+      if (!formData.phonepaisIso) {
         setError(
           'Si ingresas un número de teléfono, debes seleccionar el código de país.'
         );
@@ -94,7 +94,7 @@ export default function RegisterPage() {
         return;
       }
 
-      if (!selectedPhoneCountry) {
+      if (!selectedPhonepais) {
         setError('Código de país para teléfono no es válido.');
         setLoading(false);
         return;
@@ -102,8 +102,8 @@ export default function RegisterPage() {
     }
 
     let phoneFull: string | null = null;
-    if (formData.telefono.trim() !== '' && selectedPhoneCountry) {
-      phoneFull = `${selectedPhoneCountry.code}${formData.telefono}`;
+    if (formData.telefono.trim() !== '' && selectedPhonepais) {
+      phoneFull = `${selectedPhonepais.code}${formData.telefono}`;
     }
 
     try {
@@ -117,8 +117,8 @@ export default function RegisterPage() {
           apellido: formData.apellido,
           email: formData.email,
           password: formData.password,
-          country: formData.countryIso,
-          phone_full: phoneFull,
+          pais: formData.paisIso,
+          telefono_completo: phoneFull,
         }),
       });
 
@@ -272,15 +272,15 @@ export default function RegisterPage() {
 
                   <div className="space-y-1.5">
                     <label
-                      htmlFor="country"
+                      htmlFor="pais"
                       className="block text-xs font-medium text-purple-200"
                     >
                       País de Residencia
                     </label>
                     <CountrySelect
-                      value={formData.countryIso}
+                      value={formData.paisIso}
                       onChange={(iso) =>
-                        setFormData({ ...formData, countryIso: iso })
+                        setFormData({ ...formData, paisIso: iso })
                       }
                       disabled={loading}
                       placeholder="¿Dónde vives?"
@@ -412,11 +412,11 @@ export default function RegisterPage() {
                     </label>
                     <div className="flex gap-2">
                       <CountryComboBox
-                        value={formData.phoneCountryIso}
+                        value={formData.phonepaisIso}
                         onChange={(iso) =>
                           setFormData({
                             ...formData,
-                            phoneCountryIso: iso,
+                            phonepaisIso: iso,
                           })
                         }
                         disabled={loading}
@@ -461,9 +461,9 @@ export default function RegisterPage() {
                         />
                       </div>
                     </div>
-                    {selectedPhoneCountry && formData.telefono && (
+                    {selectedPhonepais && formData.telefono && (
                       <p className="text-xs text-purple-300/70 mt-1">
-                        {selectedPhoneCountry.code} {formData.telefono}
+                        {selectedPhonepais.code} {formData.telefono}
                       </p>
                     )}
                   </div>

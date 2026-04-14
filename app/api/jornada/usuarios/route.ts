@@ -1,4 +1,4 @@
-//api/jornada/usuarios/route.ts
+// api/jornada/usuarios/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -57,7 +57,6 @@ export async function GET(req: NextRequest) {
     const modo = normalizarTexto(searchParams.get('modo')).toLowerCase();
     const fecha = normalizarTexto(searchParams.get('fecha')) || hoyISO();
 
-    // Usuarios activos disponibles para asignar/supervisar
     if (modo === 'disponibles') {
       const disponiblesRes = await db.execute({
         sql: `
@@ -89,7 +88,6 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Usuarios asignados vigentes para la fecha consultada
     const asignadosRes = await db.execute({
       sql: `
         SELECT
@@ -161,7 +159,6 @@ export async function POST(req: NextRequest) {
     const idsLimpios = limpiarIds(body?.usuarios_ids);
     const fecha = normalizarTexto(body?.fecha) || hoyISO();
 
-    // Validar que todos existan, estén activos y puedan ser supervisados
     for (const usuarioId of idsLimpios) {
       const validacionRes = await db.execute({
         sql: `
@@ -186,7 +183,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Obtener asignaciones activas para esa fecha
     const activasRes = await db.execute({
       sql: `
         SELECT
@@ -219,15 +215,13 @@ export async function POST(req: NextRequest) {
     const paraCerrar = activas.filter((a) => !nuevosIds.has(a.usuario_id));
     const paraAgregar = idsLimpios.filter((id) => !activosIds.has(id));
 
-    // Cerrar asignaciones vigentes que ya no vienen en la nueva lista
-    // Se cierra con el día anterior para que desde "fecha" ya no aparezcan
     for (const asignacion of paraCerrar) {
       await db.execute({
         sql: `
           UPDATE supervisor_usuarios
           SET
             fecha_fin = DATE(?, '-1 day'),
-            updated_at = CURRENT_TIMESTAMP
+            actualizado_en = CURRENT_TIMESTAMP
           WHERE id = ?
             AND supervisor_id = ?
         `,
@@ -235,9 +229,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Crear nuevas asignaciones vigentes desde la fecha indicada
     for (const usuarioId of paraAgregar) {
-      // Evitar duplicar una asignación abierta exacta por seguridad
       const existenteActivaRes = await db.execute({
         sql: `
           SELECT id
@@ -262,8 +254,8 @@ export async function POST(req: NextRequest) {
               usuario_id,
               fecha_inicio,
               fecha_fin,
-              created_at,
-              updated_at
+              creado_en,
+              actualizado_en
             )
             VALUES (?, ?, ?, ?, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `,
@@ -277,7 +269,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Devolver la lista vigente para esa fecha
     const asignadosRes = await db.execute({
       sql: `
         SELECT

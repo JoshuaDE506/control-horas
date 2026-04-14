@@ -27,8 +27,8 @@ interface Proyecto {
   codigo_union: string | null;
   creador_id: string;
   creador?: CreadorPreview | null;
-  created_at: string | null;
-  updated_at: string | null;
+  creado_en: string | null;
+  actualizado_en: string | null;
 }
 
 interface Miembro {
@@ -56,8 +56,8 @@ interface TareaPreview {
   descripcion: string | null;
   prioridad: 'baja' | 'media' | 'alta';
   estado: EstadoTarea;
-  created_at: string;
-  updated_at: string;
+  creado_en: string;
+  actualizado_en: string;
   tiempo_estimado_minutos: number | null;
   max_participantes: number;
 }
@@ -557,13 +557,13 @@ export default function ProjectPreviewModal({
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-gray-400">Creado:</span>
                   <span className="text-right font-medium text-white">
-                    {formatearFecha(proyectoUI.created_at)}
+                    {formatearFecha(proyectoUI.creado_en)}
                   </span>
                 </div>
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-gray-400">Actualizado:</span>
                   <span className="text-right font-medium text-white">
-                    {formatearFecha(proyectoUI.updated_at)}
+                    {formatearFecha(proyectoUI.actualizado_en)}
                   </span>
                 </div>
               </div>

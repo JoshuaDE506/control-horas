@@ -269,7 +269,7 @@ export async function POST(
         UPDATE tareas
         SET estado = 'in-progress',
             ultimo_rechazo_comentario = ?,
-            updated_at = ?
+            actualizado_en = ?
         WHERE id = ?
           AND proyecto_id = ?
       `,

@@ -1,4 +1,4 @@
-//app/api/jornada/route.ts
+// app/api/jornada/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -159,7 +159,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validar que el usuario esté asignado al supervisor para esa fecha
     const asignacionRes = await db.execute({
       sql: `
         SELECT id
@@ -280,7 +279,7 @@ export async function POST(req: NextRequest) {
             minutos_trabajados = ?,
             estado = ?,
             motivo = ?,
-            updated_at = CURRENT_TIMESTAMP
+            actualizado_en = CURRENT_TIMESTAMP
           WHERE id = ?
         `,
         args: [
@@ -315,8 +314,8 @@ export async function POST(req: NextRequest) {
           minutos_trabajados,
           estado,
           motivo,
-          created_at,
-          updated_at
+          creado_en,
+          actualizado_en
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `,

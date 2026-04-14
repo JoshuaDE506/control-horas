@@ -1,5 +1,4 @@
 //app/dashboard/proyectos/[id]/tareas/[tareasId]/configuracion/page.tsx
-//app/dashboard/proyectos/[id]/tareas/[tareasId]/configuracion/page.tsx
 'use client';
 
 import type { ReactNode } from 'react';

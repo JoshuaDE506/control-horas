@@ -29,7 +29,7 @@ interface MiembroApi {
   apellido?: string | null;
   nombre_completo?: string | null;
   email?: string | null;
-  country?: string | null;
+  pais?: string | null;
   pais?: string | null;
   fecha_union?: string | null;
   rol?: string | null;
@@ -98,7 +98,7 @@ function adaptarMiembro(row: MiembroApi): Miembro {
     nombre_completo:
       String(row?.nombre_completo ?? '').trim() || `${nombre} ${apellido}`.trim(),
     email: String(row?.email ?? ''),
-    pais: row?.country ?? row?.pais ?? null,
+    pais: row?.pais ?? row?.pais ?? null,
     fecha_union: row?.fecha_union ?? null,
     rol: normalizarRol(row?.rol),
     tareas_asignadas: Number(row?.tareas_asignadas ?? 0),

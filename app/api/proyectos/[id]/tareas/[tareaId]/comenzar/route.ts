@@ -26,18 +26,18 @@ type TareaRow = {
 
 type AsignacionRow = {
   id: string;
-  started_at: string | null;
-  completed_at: string | null;
+  iniciado_en: string | null;
+  completado_en: string | null;
 };
 
 type RegistroHorasRow = {
   id: string;
-  started_at: string | null;
-  paused_at: string | null;
-  stopped_at: string | null;
-  total_seconds: number | bigint | null;
+  iniciado_en: string | null;
+  pausado_en: string | null;
+  detenido_en: string | null;
+  total_segundos: number | bigint | null;
   estado: string | null;
-  created_at: string | null;
+  creado_en: string | null;
 };
 
 function castRows<T>(rows: unknown[]): T[] {
@@ -144,7 +144,6 @@ export async function POST(
 
     const now = new Date().toISOString();
 
-    // 1) Verificar tarea
     const tareaRes = await db.execute({
       sql: `
         SELECT
@@ -186,7 +185,6 @@ export async function POST(
       );
     }
 
-    // 2) Verificar acceso al proyecto
     const proyectoRes = await db.execute({
       sql: `
         SELECT id, creador_id, visibilidad, modo_acceso
@@ -253,10 +251,9 @@ export async function POST(
       );
     }
 
-    // 3) Exigir asignación activa previa
     const asigRes = await db.execute({
       sql: `
-        SELECT id, started_at, completed_at
+        SELECT id, iniciado_en, completado_en
         FROM tarea_asignaciones
         WHERE tarea_id = ?
           AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
@@ -280,7 +277,7 @@ export async function POST(
       );
     }
 
-    if (asignacion.completed_at) {
+    if (asignacion.completado_en) {
       return NextResponse.json(
         {
           ok: false,
@@ -290,24 +287,22 @@ export async function POST(
       );
     }
 
-    // 4) Asegurar started_at en tarea_asignaciones
     await db.execute({
       sql: `
         UPDATE tarea_asignaciones
-        SET started_at = COALESCE(started_at, ?)
+        SET iniciado_en = COALESCE(iniciado_en, ?)
         WHERE id = ?
       `,
       args: [now, String(asignacion.id)],
     });
 
-    // 5) Mover tarea a in-progress y guardar fecha_inicio_trabajo
     if (estadoActual === 'todo') {
       await db.execute({
         sql: `
           UPDATE tareas
           SET estado = 'in-progress',
               fecha_inicio_trabajo = COALESCE(fecha_inicio_trabajo, ?),
-              updated_at = ?
+              actualizado_en = ?
           WHERE id = ?
         `,
         args: [now, now, String(tareaId)],
@@ -345,28 +340,27 @@ export async function POST(
         sql: `
           UPDATE tareas
           SET fecha_inicio_trabajo = COALESCE(fecha_inicio_trabajo, ?),
-              updated_at = ?
+              actualizado_en = ?
           WHERE id = ?
         `,
         args: [now, now, String(tareaId)],
       });
     }
 
-    // 6) Buscar último registro_horas del usuario en esta tarea
     const registroRes = await db.execute({
       sql: `
         SELECT
           id,
-          started_at,
-          paused_at,
-          stopped_at,
-          total_seconds,
+          iniciado_en,
+          pausado_en,
+          detenido_en,
+          total_segundos,
           estado,
-          created_at
+          creado_en
         FROM registro_horas
         WHERE tarea_id = ?
           AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-        ORDER BY created_at DESC
+        ORDER BY creado_en DESC
         LIMIT 1
       `,
       args: [String(tareaId), userId],
@@ -386,12 +380,12 @@ export async function POST(
             id,
             tarea_id,
             usuario_id,
-            started_at,
-            paused_at,
-            stopped_at,
-            total_seconds,
+            iniciado_en,
+            pausado_en,
+            detenido_en,
+            total_segundos,
             estado,
-            created_at
+            creado_en
           )
           VALUES (?, ?, ?, ?, NULL, NULL, 0, 'activo', ?)
         `,
@@ -406,9 +400,9 @@ export async function POST(
         await db.execute({
           sql: `
             UPDATE registro_horas
-            SET started_at = ?,
-                paused_at = NULL,
-                stopped_at = NULL,
+            SET iniciado_en = ?,
+                pausado_en = NULL,
+                detenido_en = NULL,
                 estado = 'activo'
             WHERE id = ?
           `,
@@ -420,16 +414,15 @@ export async function POST(
         await db.execute({
           sql: `
             UPDATE registro_horas
-            SET started_at = COALESCE(started_at, ?),
-                paused_at = NULL,
-                stopped_at = NULL,
+            SET iniciado_en = COALESCE(iniciado_en, ?),
+                pausado_en = NULL,
+                detenido_en = NULL,
                 estado = 'activo'
             WHERE id = ?
           `,
           args: [now, registroFinalId],
         });
       } else {
-        // Si el último registro estaba finalizado, crear uno nuevo
         registroFinalId = randomUUID();
 
         await db.execute({
@@ -438,12 +431,12 @@ export async function POST(
               id,
               tarea_id,
               usuario_id,
-              started_at,
-              paused_at,
-              stopped_at,
-              total_seconds,
+              iniciado_en,
+              pausado_en,
+              detenido_en,
+              total_segundos,
               estado,
-              created_at
+              creado_en
             )
             VALUES (?, ?, ?, ?, NULL, NULL, 0, 'activo', ?)
           `,
@@ -452,17 +445,16 @@ export async function POST(
       }
     }
 
-    // 7) Leer registro_horas final ya persistido
     const registroFinalRes = await db.execute({
       sql: `
         SELECT
           id,
-          started_at,
-          paused_at,
-          stopped_at,
-          total_seconds,
+          iniciado_en,
+          pausado_en,
+          detenido_en,
+          total_segundos,
           estado,
-          created_at
+          creado_en
         FROM registro_horas
         WHERE id = ?
         LIMIT 1
@@ -473,7 +465,6 @@ export async function POST(
     const registroFinalRows = castRows<RegistroHorasRow>(registroFinalRes.rows);
     const registroFinal = registroFinalRows[0] ?? null;
 
-    // 8) Traer asignados activos
     const asignadosRes = await db.execute({
       sql: `
         SELECT
@@ -481,33 +472,33 @@ export async function POST(
           u.nombre,
           u.apellido,
           u.email,
-          COALESCE(ta.selected_at, ta.created_at) AS seleccionada_at,
-          ta.started_at,
-          ta.completed_at
+          COALESCE(ta.seleccionado_en, ta.creado_en) AS seleccionada_at,
+          ta.iniciado_en,
+          ta.completado_en
         FROM tarea_asignaciones ta
         JOIN usuarios u
           ON CAST(u.id AS TEXT) = CAST(ta.usuario_id AS TEXT)
         WHERE ta.tarea_id = ?
           AND ta.estado = 'activo'
-        ORDER BY ta.created_at ASC
+        ORDER BY ta.creado_en ASC
       `,
       args: [String(tareaId)],
     });
 
     const payload = {
       asignados: asignadosRes.rows ?? [],
-      started_at: registroFinal?.started_at ?? now,
-      stopped_at: registroFinal?.stopped_at ?? null,
+      iniciado_en: registroFinal?.iniciado_en ?? now,
+      detenido_en: registroFinal?.detenido_en ?? null,
       estado: 'in-progress' as const,
       registro_horas: registroFinal
         ? {
             id: String(registroFinal.id),
-            started_at: registroFinal.started_at ?? null,
-            paused_at: registroFinal.paused_at ?? null,
-            stopped_at: registroFinal.stopped_at ?? null,
-            total_seconds: toSafeNumber(registroFinal.total_seconds),
+            iniciado_en: registroFinal.iniciado_en ?? null,
+            pausado_en: registroFinal.pausado_en ?? null,
+            detenido_en: registroFinal.detenido_en ?? null,
+            total_segundos: toSafeNumber(registroFinal.total_segundos),
             estado: normalizeEstadoRegistro(registroFinal.estado),
-            created_at: registroFinal.created_at ?? null,
+            creado_en: registroFinal.creado_en ?? null,
           }
         : null,
     };

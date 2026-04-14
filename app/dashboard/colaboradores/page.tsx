@@ -8,7 +8,7 @@ import ColaboradoresModal, {
   RolSistema,
 } from '@/components/ColaboradoresModal';
 
-type SortField = 'nombre' | 'created_at' | 'rol' | 'puesto' | 'pais';
+type SortField = 'nombre' | 'creado_en' | 'rol' | 'puesto' | 'pais';
 type ViewMode = 'grid' | 'list';
 type FiltroEstado = 'todos' | 'activos' | 'inactivos';
 
@@ -80,11 +80,11 @@ function mapUsuarioToColaborador(u: any): Colaborador {
     nombre: String(u.nombre ?? ''),
     apellido: String(u.apellido ?? ''),
     email: String(u.email ?? ''),
-    telefono: (u.telefono ?? u.phone_full ?? null) as string | null,
-    pais: (u.pais ?? u.country ?? null) as string | null,
+    telefono: (u.telefono ?? u.telefono_completo ?? null) as string | null,
+    pais: (u.pais ?? u.pais ?? null) as string | null,
     rol: normalizarRolSistema(u.rol),
     puesto: (u.puesto ?? null) as string | null,
-    created_at: u.created_at ? String(u.created_at) : '',
+    creado_en: u.creado_en ? String(u.creado_en) : '',
     avatar_url: u.avatar_url ?? null,
     proyectos_count:
       Number(
@@ -308,7 +308,7 @@ function GridCard({ c, onClick }: { c: Colaborador; onClick: () => void }) {
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-gray-600">{Ic.calendar}</span>
-          <span className="text-xs text-gray-600">{fmtDate(c.created_at ?? null)}</span>
+          <span className="text-xs text-gray-600">{fmtDate(c.creado_en ?? null)}</span>
         </div>
       </div>
     </button>
@@ -365,7 +365,7 @@ function ListRow({ c, onClick }: { c: Colaborador; onClick: () => void }) {
 
       <div className="hidden md:flex items-center gap-1.5 w-28 flex-shrink-0">
         <span className="text-gray-600">{Ic.calendar}</span>
-        <span className="text-xs text-gray-500">{fmtDate(c.created_at ?? null)}</span>
+        <span className="text-xs text-gray-500">{fmtDate(c.creado_en ?? null)}</span>
       </div>
 
       <span className="text-gray-600 group-hover:text-purple-400 transition-colors flex-shrink-0">
@@ -436,7 +436,7 @@ export default function ColaboradoresPage() {
   const [filtroRol, setFiltroRol] = useState<'todos' | RolSistema>('todos');
   const [filtroPais, setFiltroPais] = useState('todos');
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>('todos');
-  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortField, setSortField] = useState<SortField>('creado_en');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [view, setView] = useState<ViewMode>('grid');
 
@@ -544,7 +544,7 @@ export default function ColaboradoresPage() {
         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
       } else {
         setSortField(field);
-        setSortDir(field === 'created_at' ? 'desc' : 'asc');
+        setSortDir(field === 'creado_en' ? 'desc' : 'asc');
       }
     },
     [sortField],
@@ -583,10 +583,10 @@ export default function ColaboradoresPage() {
         case 'nombre':
           cmp = fullName(a).localeCompare(fullName(b));
           break;
-        case 'created_at':
+        case 'creado_en':
           cmp =
-            new Date(a.created_at ?? 0).getTime() -
-            new Date(b.created_at ?? 0).getTime();
+            new Date(a.creado_en ?? 0).getTime() -
+            new Date(b.creado_en ?? 0).getTime();
           break;
         case 'rol':
           cmp = a.rol.localeCompare(b.rol);
@@ -756,11 +756,11 @@ export default function ColaboradoresPage() {
             onChange={(e) => {
               const value = e.target.value as SortField;
               setSortField(value);
-              setSortDir(value === 'created_at' ? 'desc' : 'asc');
+              setSortDir(value === 'creado_en' ? 'desc' : 'asc');
             }}
             className="px-4 py-3 bg-slate-900/40 border border-slate-700/50 rounded-xl text-gray-300 focus:border-purple-500 outline-none text-sm transition-all [color-scheme:dark] cursor-pointer"
           >
-            <option value="created_at">Fecha de ingreso</option>
+            <option value="creado_en">Fecha de ingreso</option>
             <option value="nombre">Nombre</option>
             <option value="rol">Rol</option>
             <option value="puesto">Puesto</option>
@@ -860,9 +860,9 @@ export default function ColaboradoresPage() {
               />
               <SortTh
                 label="Ingreso"
-                active={sortField === 'created_at'}
+                active={sortField === 'creado_en'}
                 dir={sortDir}
-                onClick={() => toggleSort('created_at')}
+                onClick={() => toggleSort('creado_en')}
               />
               <div />
             </div>

@@ -110,7 +110,6 @@ export async function POST(
 
     const now = new Date().toISOString();
 
-    // 1) Validar tarea + proyecto
     const tRes = await db.execute({
       sql: `
         SELECT
@@ -158,7 +157,6 @@ export async function POST(
       );
     }
 
-    // 2) Validar acceso al proyecto
     const pRes = await db.execute({
       sql: `
         SELECT
@@ -234,7 +232,6 @@ export async function POST(
         ? Number(tarea.max_participantes ?? 1)
         : 1;
 
-    // 3) Si ya está activo, respuesta idempotente
     const yaActivoRes = await db.execute({
       sql: `
         SELECT id
@@ -254,7 +251,7 @@ export async function POST(
       await db.execute({
         sql: `
           UPDATE tarea_asignaciones
-          SET selected_at = ?
+          SET seleccionado_en = ?
           WHERE id = ?
         `,
         args: [now, String(asignacionActiva.id)],
@@ -289,7 +286,6 @@ export async function POST(
       );
     }
 
-    // 4) Recontar cupo
     const countRes = await db.execute({
       sql: `
         SELECT COUNT(*) AS c
@@ -310,14 +306,13 @@ export async function POST(
       );
     }
 
-    // 5) Buscar asignación previa para reactivarla
     const previaRes = await db.execute({
       sql: `
         SELECT id
         FROM tarea_asignaciones
         WHERE tarea_id = ?
           AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-        ORDER BY created_at DESC
+        ORDER BY creado_en DESC
         LIMIT 1
       `,
       args: [String(tareaId), userId],
@@ -331,10 +326,10 @@ export async function POST(
         sql: `
           UPDATE tarea_asignaciones
           SET estado = 'activo',
-              selected_at = ?,
-              started_at = NULL,
-              completed_at = NULL,
-              canceled_at = NULL
+              seleccionado_en = ?,
+              iniciado_en = NULL,
+              completado_en = NULL,
+              cancelado_en = NULL
           WHERE id = ?
         `,
         args: [now, String(asignacionPrevia.id)],
@@ -369,7 +364,6 @@ export async function POST(
       );
     }
 
-    // 6) Crear nueva asignación
     await db.execute({
       sql: `
         INSERT INTO tarea_asignaciones (
@@ -378,8 +372,8 @@ export async function POST(
           usuario_id,
           rol,
           estado,
-          created_at,
-          selected_at
+          creado_en,
+          seleccionado_en
         )
         VALUES (?, ?, ?, 'miembro', 'activo', ?, ?)
       `,

@@ -31,8 +31,8 @@ type TareaRow = {
   estado: string | null;
   tiempo_estimado_minutos: number | bigint | null;
   max_participantes: number | bigint | null;
-  created_at: string | null;
-  updated_at: string | null;
+  creado_en: string | null;
+  actualizado_en: string | null;
   creador_id: string | null;
 };
 
@@ -202,8 +202,8 @@ function mapTarea(row: TareaRow) {
     estado: normalizeEstado(row.estado) ?? 'todo',
     tiempo_estimado_minutos: toNumber(row.tiempo_estimado_minutos),
     max_participantes: toNumber(row.max_participantes) ?? 1,
-    created_at: row.created_at ?? null,
-    updated_at: row.updated_at ?? null,
+    creado_en: row.creado_en ?? null,
+    actualizado_en: row.actualizado_en ?? null,
     creador_id: row.creador_id ?? null,
   };
 }
@@ -238,8 +238,8 @@ async function cargarProyectoYTarea(
         estado,
         tiempo_estimado_minutos,
         max_participantes,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         creador_id
       FROM tareas
       WHERE id = ?
@@ -513,7 +513,7 @@ export async function PUT(
           estado = ?,
           tiempo_estimado_minutos = ?,
           max_participantes = ?,
-          updated_at = ?
+          actualizado_en = ?
         WHERE id = ?
           AND proyecto_id = ?
       `,
@@ -569,8 +569,8 @@ export async function PUT(
           estado,
           tiempo_estimado_minutos,
           max_participantes,
-          created_at,
-          updated_at,
+          creado_en,
+          actualizado_en,
           creador_id
         FROM tareas
         WHERE id = ?
@@ -662,9 +662,13 @@ export async function DELETE(
       );
     }
 
-    // Solo borrar tablas que SÍ existen en tu BD:
     await db.execute({
       sql: `DELETE FROM tarea_historial WHERE tarea_id = ?`,
+      args: [String(tareaId)],
+    });
+
+    await db.execute({
+      sql: `DELETE FROM tarea_informes WHERE tarea_id = ?`,
       args: [String(tareaId)],
     });
 
@@ -695,7 +699,10 @@ export async function DELETE(
       { status: 200 }
     );
   } catch (error) {
-    console.error('DELETE /api/proyectos/[id]/tareas/[tareaId]/configuracion error:', error);
+    console.error(
+      'DELETE /api/proyectos/[id]/tareas/[tareaId]/configuracion error:',
+      error
+    );
 
     return NextResponse.json(
       { ok: false, error: 'Error interno al eliminar la tarea' },

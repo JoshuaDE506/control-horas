@@ -13,10 +13,10 @@ type UsuarioListadoRow = {
   apellido: string | null;
   email: string | null;
   pais: string | null;
-  phone_full: string | null;
+  telefono_completo: string | null;
   rol: string | null;
   activo: number | string | boolean | null;
-  created_at: string | null;
+  creado_en: string | null;
   puesto: string | null;
   proyectos_creados_count: number | bigint | null;
   proyectos_miembro_count: number | bigint | null;
@@ -101,11 +101,11 @@ export async function GET(request: NextRequest) {
           u.nombre,
           u.apellido,
           u.email,
-          u.country AS pais,
-          u.phone_full,
+          u.pais AS pais,
+          u.telefono_completo,
           u.rol,
           u.activo,
-          u.created_at,
+          u.creado_en,
           u.puesto,
           (
             SELECT COUNT(*)
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
             WHERE pu.usuario_id = u.id
           ) AS proyectos_miembro_count
         FROM usuarios u
-        ORDER BY u.created_at DESC, u.id DESC
+        ORDER BY u.creado_en DESC, u.id DESC
       `,
       args: [],
     });
@@ -131,10 +131,10 @@ export async function GET(request: NextRequest) {
       apellido: String(row.apellido ?? ''),
       email: String(row.email ?? ''),
       pais: row.pais ?? null,
-      telefono: row.phone_full ?? null,
+      telefono: row.telefono_completo ?? null,
       rol: normalizarRolSistema(row.rol),
       activo: normalizarActivo(row.activo),
-      created_at: row.created_at ?? null,
+      creado_en: row.creado_en ?? null,
       puesto: row.puesto ?? null,
       proyectos_creados_count: Number(row.proyectos_creados_count ?? 0),
       proyectos_miembro_count: Number(row.proyectos_miembro_count ?? 0),
@@ -277,7 +277,7 @@ export async function PATCH(request: NextRequest) {
     await db.execute({
       sql: `
         UPDATE usuarios
-        SET rol = ?, puesto = ?, activo = ?, updated_at = datetime('now')
+        SET rol = ?, puesto = ?, activo = ?, actualizado_en = datetime('now')
         WHERE id = ?
       `,
       args: [nuevoRol, nuevoPuesto, nuevoActivo, targetUserId],
@@ -285,7 +285,7 @@ export async function PATCH(request: NextRequest) {
 
     const updatedResult = await db.execute({
       sql: `
-        SELECT id, nombre, apellido, email, country AS pais, phone_full, rol, activo, created_at, puesto
+        SELECT id, nombre, apellido, email, pais AS pais, telefono_completo, rol, activo, creado_en, puesto
         FROM usuarios
         WHERE id = ?
         LIMIT 1
@@ -313,10 +313,10 @@ export async function PATCH(request: NextRequest) {
           apellido: String(updated.apellido ?? ''),
           email: String(updated.email ?? ''),
           pais: updated.pais ?? null,
-          telefono: updated.phone_full ?? null,
+          telefono: updated.telefono_completo ?? null,
           rol: normalizarRolSistema(updated.rol),
           activo: normalizarActivo(updated.activo),
-          created_at: updated.created_at ?? null,
+          creado_en: updated.creado_en ?? null,
           puesto: updated.puesto ?? null,
         },
       },

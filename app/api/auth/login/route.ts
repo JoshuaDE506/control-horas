@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
             usuario_id,
             inicio,
             fin,
-            updated_at
+            actualizado_en
           )
           VALUES (?, ?, ?, NULL, ?)
         `,

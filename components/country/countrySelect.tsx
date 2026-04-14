@@ -1,32 +1,32 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Country, countries } from '@/lib/countries';
+import { pais, countries } from '@/lib/countries';
 
-interface CountrySelectProps {
+interface paisSelectProps {
   value: string; // ISO del país seleccionado (ej: "CR", "MX", "US")
-  onChange: (countryIso: string) => void;
+  onChange: (paisIso: string) => void;
   disabled?: boolean;
   className?: string;
   placeholder?: string;
 }
 
-export default function CountrySelect({ 
+export default function paisSelect({ 
   value, 
   onChange, 
   disabled = false,
   className = '',
   placeholder = 'Selecciona tu país'
-}: CountrySelectProps) {
+}: paisSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectedCountry = countries.find(c => c.country === value);
+  const selectedpais = countries.find(c => c.pais === value);
 
   // Filtrar países según búsqueda
-  const filteredCountries = countries.filter(country => 
-    country.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredCountries = countries.filter(pais => 
+    pais.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Cerrar dropdown al hacer clic fuera
@@ -47,8 +47,8 @@ export default function CountrySelect({
     };
   }, [isOpen]);
 
-  const handleSelect = (country: Country) => {
-    onChange(country.country); // Devuelve el ISO (ej: "CR")
+  const handleSelect = (pais: pais) => {
+    onChange(pais.pais); // Devuelve el ISO (ej: "CR")
     setIsOpen(false);
     setSearchTerm('');
   };
@@ -61,15 +61,15 @@ export default function CountrySelect({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={`w-full px-4 py-3 bg-white/5 border-2 rounded-xl text-left transition-all duration-300 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between ${
-          isOpen || selectedCountry
+          isOpen || selectedpais
             ? 'border-purple-400 shadow-lg shadow-purple-500/50'
             : 'border-white/20 hover:border-white/30'
         }`}
       >
-        {selectedCountry ? (
+        {selectedpais ? (
           <span className="flex items-center gap-3 text-white">
-            <span className="text-2xl">{selectedCountry.flag}</span>
-            <span className="font-medium">{selectedCountry.name}</span>
+            <span className="text-2xl">{selectedpais.flag}</span>
+            <span className="font-medium">{selectedpais.name}</span>
           </span>
         ) : (
           <span className="text-purple-300/50">{placeholder}</span>
@@ -109,20 +109,20 @@ export default function CountrySelect({
           {/* Countries List */}
           <div className="max-h-48 overflow-y-auto custom-scrollbar">
             {filteredCountries.length > 0 ? (
-              filteredCountries.map((country) => (
+              filteredCountries.map((pais) => (
                 <button
-                  key={country.country}
+                  key={pais.pais}
                   type="button"
-                  onClick={() => handleSelect(country)}
+                  onClick={() => handleSelect(pais)}
                   className={`w-full px-4 py-2.5 text-left hover:bg-purple-500/20 transition-colors flex items-center gap-3 ${
-                    country.country === value ? 'bg-purple-500/30' : ''
+                    pais.pais === value ? 'bg-purple-500/30' : ''
                   }`}
                 >
-                  <span className="text-2xl">{country.flag}</span>
+                  <span className="text-2xl">{pais.flag}</span>
                   <div className="flex-1">
-                    <div className="text-sm font-medium text-white">{country.name}</div>
+                    <div className="text-sm font-medium text-white">{pais.name}</div>
                   </div>
-                  {country.country === value && (
+                  {pais.pais === value && (
                     <svg className="w-5 h-5 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>

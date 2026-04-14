@@ -14,8 +14,8 @@ type BaseTareaRow = {
   descripcion: string | null;
   prioridad: string | null;
   estado: string | null;
-  created_at: string | null;
-  updated_at: string | null;
+  creado_en: string | null;
+  actualizado_en: string | null;
   proyecto_id: number | bigint | null;
   proyecto_nombre: string | null;
   creador_id: string | null;
@@ -24,7 +24,7 @@ type BaseTareaRow = {
   asignado_directo: string | null;
   asignados: string | null;
   tiempo_estimado_minutos: number | bigint | null;
-  fecha_seleccionada: string | null;
+  seleccionado_en: string | null;
   fecha_inicio_trabajo: string | null;
   fecha_envio_revision: string | null;
   fecha_aprobacion: string | null;
@@ -187,12 +187,12 @@ export async function GET(req: NextRequest) {
     }
 
     if (fechaInicio) {
-      where.push(`datetime(t.created_at) >= datetime(?)`);
+      where.push(`datetime(t.creado_en) >= datetime(?)`);
       args.push(fechaInicio);
     }
 
     if (fechaFin) {
-      where.push(`datetime(t.created_at) <= datetime(?)`);
+      where.push(`datetime(t.creado_en) <= datetime(?)`);
       args.push(fechaFin);
     }
 
@@ -240,8 +240,8 @@ export async function GET(req: NextRequest) {
             TRIM(COALESCE(u.nombre, '') || ' ' || COALESCE(u.apellido, '')),
             ', '
           ) AS asignados,
-          SUM(CASE WHEN ta.selected_at IS NOT NULL THEN 1 ELSE 0 END) AS cantidad_selecciones,
-          SUM(CASE WHEN ta.completed_at IS NOT NULL THEN 1 ELSE 0 END) AS cantidad_completadas
+          SUM(CASE WHEN ta.seleccionado_en IS NOT NULL THEN 1 ELSE 0 END) AS cantidad_selecciones,
+          SUM(CASE WHEN ta.completado_en IS NOT NULL THEN 1 ELSE 0 END) AS cantidad_completadas
         FROM tarea_asignaciones ta
         INNER JOIN usuarios u
           ON CAST(u.id AS TEXT) = CAST(ta.usuario_id AS TEXT)
@@ -252,7 +252,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN (
         SELECT
           rh.tarea_id,
-          ROUND(SUM(COALESCE(rh.total_seconds, 0)) / 60.0, 2) AS minutos_reales
+          ROUND(SUM(COALESCE(rh.total_segundos, 0)) / 60.0, 2) AS minutos_reales
         FROM registro_horas rh
         GROUP BY rh.tarea_id
       ) rh_agg
@@ -283,8 +283,8 @@ export async function GET(req: NextRequest) {
           t.descripcion,
           t.prioridad,
           t.estado,
-          t.created_at,
-          t.updated_at,
+          t.creado_en,
+          t.actualizado_en,
           t.proyecto_id,
           p.nombre AS proyecto_nombre,
           t.creador_id,
@@ -293,7 +293,7 @@ export async function GET(req: NextRequest) {
           TRIM(COALESCE(ua.nombre, '') || ' ' || COALESCE(ua.apellido, '')) AS asignado_directo,
           ta_agg.asignados,
           t.tiempo_estimado_minutos,
-          t.fecha_seleccionada,
+          t.seleccionado_en,
           t.fecha_inicio_trabajo,
           t.fecha_envio_revision,
           t.fecha_aprobacion,
@@ -305,7 +305,7 @@ export async function GET(req: NextRequest) {
           COALESCE(ta_agg.cantidad_completadas, 0) AS cantidad_completadas
         ${baseFromSql}
         ${whereSql}
-        ORDER BY datetime(t.created_at) DESC
+        ORDER BY datetime(t.creado_en) DESC
       `,
       args,
     });
@@ -333,9 +333,9 @@ export async function GET(req: NextRequest) {
         creado_por: row.creado_por?.trim() || '—',
         usuario_id: row.usuario_id ?? null,
         asignado_a: asignadoA,
-        fecha_creacion: row.created_at ?? null,
-        updated_at: row.updated_at ?? null,
-        fecha_seleccionada: row.fecha_seleccionada ?? null,
+        fecha_creacion: row.creado_en ?? null,
+        actualizado_en: row.actualizado_en ?? null,
+        seleccionado_en: row.seleccionado_en ?? null,
         fecha_inicio_trabajo: row.fecha_inicio_trabajo ?? null,
         fecha_envio_revision: row.fecha_envio_revision ?? null,
         fecha_aprobacion: row.fecha_aprobacion ?? null,
@@ -372,12 +372,12 @@ export async function GET(req: NextRequest) {
     }
 
     if (fechaInicio) {
-      filtrosHoras.push(`datetime(rh.started_at) >= datetime(?)`);
+      filtrosHoras.push(`datetime(rh.iniciado_en) >= datetime(?)`);
       argsHoras.push(fechaInicio);
     }
 
     if (fechaFin) {
-      filtrosHoras.push(`datetime(rh.started_at) <= datetime(?)`);
+      filtrosHoras.push(`datetime(rh.iniciado_en) <= datetime(?)`);
       argsHoras.push(fechaFin);
     }
 
@@ -388,10 +388,10 @@ export async function GET(req: NextRequest) {
     const horasRes = await db.execute({
       sql: `
         SELECT
-          SUM(CASE WHEN datetime(rh.started_at) >= datetime(?) THEN COALESCE(rh.total_seconds, 0) ELSE 0 END) AS hoy,
-          SUM(CASE WHEN datetime(rh.started_at) >= datetime(?) THEN COALESCE(rh.total_seconds, 0) ELSE 0 END) AS semana,
-          SUM(CASE WHEN datetime(rh.started_at) >= datetime(?) THEN COALESCE(rh.total_seconds, 0) ELSE 0 END) AS mes,
-          SUM(COALESCE(rh.total_seconds, 0)) AS rango
+          SUM(CASE WHEN datetime(rh.iniciado_en) >= datetime(?) THEN COALESCE(rh.total_segundos, 0) ELSE 0 END) AS hoy,
+          SUM(CASE WHEN datetime(rh.iniciado_en) >= datetime(?) THEN COALESCE(rh.total_segundos, 0) ELSE 0 END) AS semana,
+          SUM(CASE WHEN datetime(rh.iniciado_en) >= datetime(?) THEN COALESCE(rh.total_segundos, 0) ELSE 0 END) AS mes,
+          SUM(COALESCE(rh.total_segundos, 0)) AS rango
         FROM registro_horas rh
         INNER JOIN tareas t
           ON t.id = rh.tarea_id
@@ -411,11 +411,11 @@ export async function GET(req: NextRequest) {
     const actividadRes = await db.execute({
       sql: `
         SELECT
-          strftime('%Y-%m-%d', t.created_at) AS periodo,
+          strftime('%Y-%m-%d', t.creado_en) AS periodo,
           COUNT(*) AS total
         ${baseFromSql}
         ${whereSql}
-        GROUP BY strftime('%Y-%m-%d', t.created_at)
+        GROUP BY strftime('%Y-%m-%d', t.creado_en)
         ORDER BY periodo ASC
       `,
       args,

@@ -11,8 +11,8 @@ interface SolicitudApi {
   usuario_id: string;
   estado: SolicitudEstado;
   mensaje: string | null;
-  created_at: string;
-  updated_at: string | null;
+  creado_en: string;
+  actualizado_en: string | null;
   nombre: string;
   apellido: string | null;
   email: string;
@@ -313,7 +313,7 @@ export default function SolicitudesModal({
                         </p>
 
                         <p className="text-[11px] text-gray-500">
-                          Solicitado: {formatDateTime(s.created_at)}
+                          Solicitado: {formatDateTime(s.creado_en)}
                         </p>
 
                         <p className="mt-2 break-words text-xs text-gray-300">

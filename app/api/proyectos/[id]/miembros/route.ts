@@ -25,7 +25,7 @@ type MiembroRow = {
   usuario_id: string;
   nombre: string | null;
   apellido: string | null;
-  country: string | null;
+  pais: string | null;
   email: string | null;
   rol_raw: string | null;
   fecha_union: string | null;
@@ -190,7 +190,7 @@ export async function GET(
           u.id AS usuario_id,
           u.nombre,
           u.apellido,
-          u.country,
+          u.pais,
           u.email,
           'owner' AS rol_raw,
           pu.fecha_union AS fecha_union,
@@ -216,7 +216,7 @@ export async function GET(
           u.id AS usuario_id,
           u.nombre,
           u.apellido,
-          u.country,
+          u.pais,
           u.email,
           pu.rol_en_proyecto AS rol_raw,
           pu.fecha_union,
@@ -254,7 +254,7 @@ export async function GET(
         nombre,
         apellido,
         nombre_completo: `${nombre} ${apellido}`.trim(),
-        pais: row.country ?? null,
+        pais: row.pais ?? null,
         email: row.email ?? '',
         fecha_union: row.fecha_union ?? null,
         rol: normalizarRolProyecto(row.rol_raw),

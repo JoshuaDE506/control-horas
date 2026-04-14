@@ -1,3 +1,4 @@
+// app/dashboard/proyectos/[id]/tareas/page.tsx
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -21,8 +22,8 @@ interface Tarea {
   descripcion: string | null;
   prioridad: Prioridad;
   estado: Estado;
-  created_at: string;
-  updated_at: string;
+  creado_en: string;
+  actualizado_en: string;
   proyecto_id: number;
   creador_id: string;
   tiempo_estimado_minutos: number | null;
@@ -189,8 +190,8 @@ export default function TareasPage() {
       descripcion: t?.descripcion ?? null,
       prioridad: normalizarPrioridad(t?.prioridad),
       estado: normalizarEstado(t?.estado),
-      created_at: String(t?.created_at ?? ''),
-      updated_at: String(t?.updated_at ?? ''),
+      creado_en: String(t?.creado_en ?? ''),
+      actualizado_en: String(t?.actualizado_en ?? ''),
       proyecto_id: Number(t?.proyecto_id ?? 0),
       creador_id: String(t?.creador_id ?? ''),
       tiempo_estimado_minutos:
@@ -212,8 +213,8 @@ export default function TareasPage() {
       descripcion: raw?.descripcion ?? null,
       prioridad: normalizarPrioridad(raw?.prioridad),
       estado: normalizarEstado(raw?.estado),
-      created_at: String(raw?.created_at ?? ''),
-      updated_at: String(raw?.updated_at ?? ''),
+      creado_en: String(raw?.creado_en ?? ''),
+      actualizado_en: String(raw?.actualizado_en ?? ''),
       proyecto_id: Number(raw?.proyecto_id ?? 0),
       creador_id: String(raw?.creador_id ?? ''),
       tiempo_estimado_minutos:
@@ -238,8 +239,8 @@ export default function TareasPage() {
           const lista = Array.isArray(data?.asignados)
             ? data.asignados
             : Array.isArray(data?.data?.asignados)
-            ? data.data.asignados
-            : [];
+              ? data.data.asignados
+              : [];
           setAsignados((prev) => ({ ...prev, [tareaId]: lista }));
           asignadosFetchedAtRef.current[tareaId] = Date.now();
         }
@@ -792,7 +793,7 @@ export default function TareasPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <ColumnaKanban
             titulo="Por Hacer"
             color="gray"
@@ -929,7 +930,7 @@ function ColumnaKanban({
   };
 
   return (
-    <div className="flex min-h-[280px] flex-col 2xl:min-h-0">
+    <div className="flex min-h-[280px] flex-col lg:min-h-0">
       <div className={`mb-3 rounded-lg border bg-gradient-to-r p-3 backdrop-blur-xl ${colorConfig[color]}`}>
         <h3 className="flex items-center justify-between text-sm font-semibold text-white">
           {titulo}
@@ -939,7 +940,7 @@ function ColumnaKanban({
         </h3>
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto 2xl:max-h-[calc(100vh-300px)]">
+      <div className="flex-1 space-y-2 overflow-y-auto lg:max-h-[calc(100vh-300px)]">
         {tareas.length === 0 ? (
           <div className="py-8 text-center text-sm text-gray-500">No hay tareas</div>
         ) : (
@@ -1093,7 +1094,7 @@ function TareaCard({
         </div>
 
         <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-500">{formatearFecha(tarea.created_at)}</span>
+          <span className="text-gray-500">{formatearFecha(tarea.creado_en)}</span>
         </div>
       </div>
 

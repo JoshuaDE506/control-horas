@@ -457,7 +457,7 @@ export async function PATCH(
     const sql = `
       UPDATE tareas
       SET estado = ?,
-          updated_at = ?
+          actualizado_en = ?
           ${extraSql}
       WHERE id = ?
         AND proyecto_id = ?

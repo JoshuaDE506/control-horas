@@ -27,10 +27,10 @@ type AsignadoRow = {
   apellido: string | null;
   email: string | null;
   seleccionada_at: string | null;
-  started_at: string | null;
-  completed_at: string | null;
+  iniciado_en: string | null;
+  completado_en: string | null;
   cronometro_estado: string | null;
-  cronometro_total_seconds: number | bigint | null;
+  cronometro_total_segundos: number | bigint | null;
 };
 
 function castRows<T>(rows: unknown[]): T[] {
@@ -106,7 +106,6 @@ export async function GET(
       );
     }
 
-    // 1) Validar que la tarea pertenezca al proyecto
     const tRes = await db.execute({
       sql: `
         SELECT id, proyecto_id, estado
@@ -126,7 +125,6 @@ export async function GET(
 
     const estadoTarea = normalizeEstadoTarea(tarea.estado);
 
-    // 2) Validar acceso al proyecto
     const pRes = await db.execute({
       sql: `
         SELECT id, creador_id, modo_acceso, visibilidad
@@ -191,7 +189,6 @@ export async function GET(
       );
     }
 
-    // 3) Traer asignados activos + último estado de cronómetro
     const aRes = await db.execute({
       sql: `
         SELECT
@@ -199,11 +196,11 @@ export async function GET(
           u.nombre,
           u.apellido,
           u.email,
-          COALESCE(ta.selected_at, ta.created_at) AS seleccionada_at,
-          ta.started_at,
-          ta.completed_at,
+          COALESCE(ta.seleccionado_en, ta.creado_en) AS seleccionada_at,
+          ta.iniciado_en,
+          ta.completado_en,
           rh.estado AS cronometro_estado,
-          rh.total_seconds AS cronometro_total_seconds
+          rh.total_segundos AS cronometro_total_segundos
         FROM tarea_asignaciones ta
         JOIN usuarios u
           ON CAST(u.id AS TEXT) = CAST(ta.usuario_id AS TEXT)
@@ -213,12 +210,12 @@ export async function GET(
             FROM registro_horas rh2
             WHERE rh2.tarea_id = ta.tarea_id
               AND CAST(rh2.usuario_id AS TEXT) = CAST(ta.usuario_id AS TEXT)
-            ORDER BY rh2.created_at DESC
+            ORDER BY rh2.creado_en DESC
             LIMIT 1
           )
         WHERE ta.tarea_id = ?
           AND ta.estado = 'activo'
-        ORDER BY ta.created_at ASC;
+        ORDER BY ta.creado_en ASC;
       `,
       args: [String(tareaId)],
     });
@@ -229,13 +226,13 @@ export async function GET(
       apellido: row.apellido ?? "",
       email: row.email ?? "",
       seleccionada_at: row.seleccionada_at ?? null,
-      started_at: row.started_at ?? null,
-      completed_at: row.completed_at ?? null,
-      ha_comenzado: !!row.started_at,
-      ha_completado: !!row.completed_at,
+      iniciado_en: row.iniciado_en ?? null,
+      completado_en: row.completado_en ?? null,
+      ha_comenzado: !!row.iniciado_en,
+      ha_completado: !!row.completado_en,
       cronometro: {
         estado: row.cronometro_estado ?? null,
-        total_seconds: toNumber(row.cronometro_total_seconds),
+        total_segundos: toNumber(row.cronometro_total_segundos),
       },
     }));
 

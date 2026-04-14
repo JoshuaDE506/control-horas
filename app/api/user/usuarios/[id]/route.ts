@@ -52,12 +52,12 @@ type UsuarioBaseRow = {
   nombre: string | null;
   apellido: string | null;
   email: string | null;
-  country: string | null;
+  pais: string | null;
   rol: string | null;
   activo: number | string | boolean | null;
-  created_at: string | null;
+  creado_en: string | null;
   puesto: string | null;
-  phone_full: string | null;
+  telefono_completo: string | null;
 };
 
 type CountRow = {
@@ -93,12 +93,12 @@ async function getUsuarioBase(id: string) {
         nombre,
         apellido,
         email,
-        country,
+        pais,
         rol,
         activo,
-        created_at,
+        creado_en,
         puesto,
-        phone_full
+        telefono_completo
       FROM usuarios
       WHERE id = ?
       LIMIT 1
@@ -220,7 +220,7 @@ async function getUsuarioProyectos(id: string) {
         pu.rol_en_proyecto,
         pu.tipo_union
       ORDER BY
-        COALESCE(p.updated_at, p.created_at) DESC,
+        COALESCE(p.actualizado_en, p.creado_en) DESC,
         p.id DESC
     `,
     args: [id, id, id, id],
@@ -258,12 +258,12 @@ async function buildUsuarioDetalle(id: string) {
     nombre: String(usuarioBase.nombre ?? ''),
     apellido: String(usuarioBase.apellido ?? ''),
     email: String(usuarioBase.email ?? ''),
-    pais: usuarioBase.country ?? null,
+    pais: usuarioBase.pais ?? null,
     rol: normalizarRolSistema(usuarioBase.rol),
     activo: normalizarActivo(usuarioBase.activo),
     puesto: usuarioBase.puesto ?? null,
-    created_at: usuarioBase.created_at ?? null,
-    phone_full: usuarioBase.phone_full ?? null,
+    creado_en: usuarioBase.creado_en ?? null,
+    telefono_completo: usuarioBase.telefono_completo ?? null,
     proyectos_creados_count: counts.proyectos_creados_count,
     proyectos_miembro_count: counts.proyectos_miembro_count,
     tareas_seleccionadas: tareas.tareas_seleccionadas,
@@ -480,7 +480,7 @@ export async function PATCH(
     await db.execute({
       sql: `
         UPDATE usuarios
-        SET rol = ?, activo = ?, puesto = ?, updated_at = datetime('now')
+        SET rol = ?, activo = ?, puesto = ?, actualizado_en = datetime('now')
         WHERE id = ?
       `,
       args: [nuevoRol, nuevoActivo, nuevoPuesto, id],
@@ -591,7 +591,7 @@ export async function DELETE(
     await db.execute({
       sql: `
         UPDATE usuarios
-        SET activo = 0, updated_at = datetime('now')
+        SET activo = 0, actualizado_en = datetime('now')
         WHERE id = ?
       `,
       args: [id],

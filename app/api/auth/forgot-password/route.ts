@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     await db.execute({
       sql: `
         UPDATE usuarios
-        SET reset_code = ?, reset_expires = ?, updated_at = ?
+        SET codigo_recuperacion = ?, expira_codigo_recuperacion = ?, actualizado_en = ?
         WHERE id = ?
       `,
       args: [code, expiresAt, updatedAt, user.id],

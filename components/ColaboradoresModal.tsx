@@ -16,7 +16,7 @@ export interface Colaborador {
   pais: string | null;
   rol: RolSistema;
   puesto: string | null;
-  created_at: string;
+  creado_en: string;
   avatar_url?: string | null;
   proyectos_count?: number;
   activo: boolean;
@@ -503,7 +503,7 @@ export default function ColaboradoresModal({
 
           <div className="flex gap-4 flex-col sm:flex-row">
             <StatCard label="Proyectos" value={String(c.proyectos_count ?? 0)} accent />
-            <StatCard label="Antigüedad" value={antiguedad(c.created_at)} />
+            <StatCard label="Antigüedad" value={antiguedad(c.creado_en)} />
             <StatCard label="ID" value={`#${c.id}`} />
           </div>
 
@@ -593,8 +593,8 @@ export default function ColaboradoresModal({
           <div>
             <SectionLabel>Actividad</SectionLabel>
             <div className="bg-slate-800/30 border border-slate-700/40 rounded-xl px-5 py-5 space-y-4">
-              <InfoRow icon={Ic.calendar} label="Miembro desde" value={fmtDate(c.created_at)} />
-              <InfoRow icon={Ic.clock} label="Antigüedad" value={antiguedad(c.created_at)} />
+              <InfoRow icon={Ic.calendar} label="Miembro desde" value={fmtDate(c.creado_en)} />
+              <InfoRow icon={Ic.clock} label="Antigüedad" value={antiguedad(c.creado_en)} />
               <InfoRow
                 icon={Ic.folder}
                 label="Proyectos"

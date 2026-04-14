@@ -12,7 +12,7 @@ export type InformeExistente = {
   tipo: TipoInforme;
   titulo: string;
   descripcion: string;
-  archivo_url?: string | null;
+  url_archivo?: string | null;
   creado_por?: string;
   fecha_creacion?: string;
 };
@@ -44,8 +44,8 @@ type InformeApiRow = {
   tipo?: TipoInforme | null;
   titulo?: string;
   descripcion?: string;
-  archivo_url?: string | null;
-  created_at?: string | null;
+  url_archivo?: string | null;
+  creado_en?: string | null;
   fecha_creacion?: string | null;
   creado_por?: string | null;
   usuario_nombre?: string | null;
@@ -143,9 +143,9 @@ function mapInformeApiRow(row: InformeApiRow): InformeExistente {
     tipo: row.tipo === 'avance' ? 'avance' : 'final',
     titulo: row.titulo?.trim() || '',
     descripcion: row.descripcion?.trim() || '',
-    archivo_url: row.archivo_url ?? null,
+    url_archivo: row.url_archivo ?? null,
     creado_por: nombre,
-    fecha_creacion: row.fecha_creacion ?? row.created_at ?? undefined,
+    fecha_creacion: row.fecha_creacion ?? row.creado_en ?? undefined,
   };
 }
 
@@ -465,7 +465,7 @@ export default function InformeModal({
 
   const [titulo, setTitulo] = useState(currentInforme?.titulo ?? '');
   const [descripcion, setDescripcion] = useState(currentInforme?.descripcion ?? '');
-  const [archivoUrl, setArchivoUrl] = useState(currentInforme?.archivo_url ?? '');
+  const [archivoUrl, setArchivoUrl] = useState(currentInforme?.url_archivo ?? '');
   const [saving, setSaving] = useState(false);
   const [errorGlobal, setErrorGlobal] = useState('');
   const [tabVista, setTabVista] = useState<'informe' | 'evidencia'>('informe');
@@ -541,7 +541,7 @@ export default function InformeModal({
 
     setTitulo(inf?.titulo ?? '');
     setDescripcion(inf?.descripcion ?? '');
-    setArchivoUrl(inf?.archivo_url ?? '');
+    setArchivoUrl(inf?.url_archivo ?? '');
     setErrorGlobal('');
     setTabVista('informe');
     setLightboxOpen(false);
@@ -597,7 +597,7 @@ export default function InformeModal({
             tipo: tipoInforme,
             titulo: titulo.trim(),
             descripcion: descripcion.trim(),
-            archivo_url: archivoUrl.trim(),
+            url_archivo: archivoUrl.trim(),
           }),
         }
       );
@@ -893,7 +893,7 @@ export default function InformeModal({
 
                     <p className="text-xs text-slate-600 break-words">
                       Este modal usa la estructura actual del backend, que guarda una sola
-                      <code> archivo_url </code> por informe.
+                      <code> url_archivo </code> por informe.
                     </p>
                   </div>
                 ) : null}

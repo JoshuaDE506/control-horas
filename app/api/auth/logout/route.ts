@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       await db.execute({
         sql: `
           UPDATE sesiones_trabajo
-          SET fin = ?, updated_at = ?
+          SET fin = ?, actualizado_en = ?
           WHERE usuario_id = ? AND fin IS NULL
         `,
         args: [now, now, userId],

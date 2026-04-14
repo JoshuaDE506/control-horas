@@ -1,35 +1,35 @@
-//horaslaborales/components/country/countryComboBox.tsx
+//horaslaborales/components/pais/paisComboBox.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Country, countries } from '@/lib/countries';
+import { pais, countries } from '@/lib/countries';
 
-interface CountryComboBoxProps {
+interface paisComboBoxProps {
   value: string; // ISO del país seleccionado (ej: "CR"), puede ser '' si no ha elegido
-  onChange: (countryIso: string) => void;
+  onChange: (paisIso: string) => void;
   disabled?: boolean;
   className?: string;
 }
 
-export default function CountryComboBox({
+export default function paisComboBox({
   value,
   onChange,
   disabled = false,
   className = '',
-}: CountryComboBoxProps) {
+}: paisComboBoxProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Puede no haber país seleccionado aún
-  const selectedCountry: Country | undefined = countries.find(
-    c => c.country === value
+  const selectedpais: pais | undefined = countries.find(
+    c => c.pais === value
   );
 
   // Filtrar países según búsqueda
-  const filteredCountries = countries.filter(country =>
-    country.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    country.code.includes(searchTerm)
+  const filteredCountries = countries.filter(pais =>
+    pais.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    pais.code.includes(searchTerm)
   );
 
   // Cerrar dropdown al hacer clic fuera
@@ -53,9 +53,9 @@ export default function CountryComboBox({
     };
   }, [isOpen]);
 
-  const handleSelect = (country: Country) => {
+  const handleSelect = (pais: pais) => {
     // Devolvemos el ISO (ej: "CR", "US", "ES")
-    onChange(country.country);
+    onChange(pais.pais);
     setIsOpen(false);
     setSearchTerm('');
   };
@@ -69,11 +69,11 @@ export default function CountryComboBox({
         disabled={disabled}
         className="h-full px-3 py-3 bg-white/5 border-2 border-white/20 rounded-xl text-white hover:bg-white/10 transition-all duration-300 focus:outline-none focus:border-purple-400 flex items-center gap-2 min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {selectedCountry ? (
+        {selectedpais ? (
           <>
-            <span className="text-2xl">{selectedCountry.flag}</span>
+            <span className="text-2xl">{selectedpais.flag}</span>
             <span className="text-sm font-medium">
-              {selectedCountry.name} ({selectedCountry.code})
+              {selectedpais.name} ({selectedpais.code})
             </span>
           </>
         ) : (
@@ -133,25 +133,25 @@ export default function CountryComboBox({
           {/* Countries List */}
           <div className="max-h-64 overflow-y-auto custom-scrollbar">
             {filteredCountries.length > 0 ? (
-              filteredCountries.map(country => (
+              filteredCountries.map(pais => (
                 <button
-                  key={`${country.country}-${country.code}`}
+                  key={`${pais.pais}-${pais.code}`}
                   type="button"
-                  onClick={() => handleSelect(country)}
+                  onClick={() => handleSelect(pais)}
                   className={`w-full px-4 py-3 text-left hover:bg-purple-500/20 transition-colors flex items-center gap-3 ${
-                    country.country === value ? 'bg-purple-500/30' : ''
+                    pais.pais === value ? 'bg-purple-500/30' : ''
                   }`}
                 >
-                  <span className="text-2xl">{country.flag}</span>
+                  <span className="text-2xl">{pais.flag}</span>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-white">
-                      {country.name}
+                      {pais.name}
                     </div>
                     <div className="text-xs text-purple-300">
-                      {country.code}
+                      {pais.code}
                     </div>
                   </div>
-                  {country.country === value && (
+                  {pais.pais === value && (
                     <svg
                       className="w-5 h-5 text-purple-400"
                       fill="currentColor"

@@ -14,15 +14,15 @@ export interface Proyecto {
   creador_id: number | string;
   estado: string;
   codigo_union: string;
-  created_at: string;
-  updated_at: string;
+  creado_en: string;
+  actualizado_en: string;
   modo_acceso: string;
   prioridad: PrioridadProyecto;
   visibilidad: string;
   fecha_inicio: string | null;
   fecha_fin: string | null;
   configuracion: string | null;
-  last_activity_at: string | null;
+  ultima_actividad: string | null;
 
   // 🔹 Nuevos campos de permisos
   permiso_editar_proyecto: PermisoEditarProyecto;
@@ -60,22 +60,22 @@ export async function getProyectosByCreadorId(creadorId: string): Promise<Proyec
         creador_id,
         estado,
         codigo_union,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         modo_acceso,
         prioridad,
         visibilidad,
         fecha_inicio,
         fecha_fin,
         configuracion,
-        last_activity_at,
+        ultima_actividad,
         permiso_editar_proyecto,
         permiso_gestionar_tareas,
         1 AS is_creator,
         0 AS is_member
       FROM proyectos
       WHERE creador_id = ?
-      ORDER BY created_at DESC
+      ORDER BY creado_en DESC
     `,
     args: [creadorId],
   });
@@ -123,15 +123,15 @@ export async function createProyecto(input: CreateProyectoInput): Promise<Proyec
         creador_id,
         estado,
         codigo_union,
-        created_at,
-        updated_at,
+        creado_en,
+        actualizado_en,
         modo_acceso,
         prioridad,
         visibilidad,
         fecha_inicio,
         fecha_fin,
         configuracion,
-        last_activity_at,
+        ultima_actividad,
         permiso_editar_proyecto,
         permiso_gestionar_tareas
     `,
@@ -178,15 +178,15 @@ export async function getProyectosVisiblesParaUsuario(userId: string): Promise<P
         p.creador_id,
         p.estado,
         p.codigo_union,
-        p.created_at,
-        p.updated_at,
+        p.creado_en,
+        p.actualizado_en,
         p.modo_acceso,
         p.prioridad,
         p.visibilidad,
         p.fecha_inicio,
         p.fecha_fin,
         p.configuracion,
-        p.last_activity_at,
+        p.ultima_actividad,
         p.permiso_editar_proyecto,
         p.permiso_gestionar_tareas,
 
@@ -203,7 +203,7 @@ export async function getProyectosVisiblesParaUsuario(userId: string): Promise<P
         OR p.creador_id = ?
         OR pu.usuario_id IS NOT NULL
 
-      ORDER BY p.created_at DESC
+      ORDER BY p.creado_en DESC
     `,
     args: [userId, userId, userId],
   });
@@ -226,7 +226,7 @@ export async function getProyectosCreadosPorUsuario(userId: string): Promise<Pro
         ON pu.proyecto_id = p.id
        AND pu.usuario_id = ?
       WHERE p.creador_id = ?
-      ORDER BY p.created_at DESC
+      ORDER BY p.creado_en DESC
     `,
     args: [userId, userId],
   });
@@ -249,7 +249,7 @@ export async function getProyectosDondeSoyMiembro(userId: string): Promise<Proye
         ON pu.proyecto_id = p.id
       WHERE pu.usuario_id = ?
         AND p.creador_id <> ?
-      ORDER BY p.created_at DESC
+      ORDER BY p.creado_en DESC
     `,
     args: [userId, userId],
   });

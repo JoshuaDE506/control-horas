@@ -24,8 +24,8 @@ type TareaRow = {
 
 type AsignacionRow = {
   id: string;
-  started_at: string | null;
-  completed_at: string | null;
+  iniciado_en: string | null;
+  completado_en: string | null;
 };
 
 type CountRow = {
@@ -34,10 +34,10 @@ type CountRow = {
 
 type RegistroHorasRow = {
   id: string;
-  started_at: string | null;
-  paused_at: string | null;
-  stopped_at: string | null;
-  total_seconds: number | bigint | null;
+  iniciado_en: string | null;
+  pausado_en: string | null;
+  detenido_en: string | null;
+  total_segundos: number | bigint | null;
   estado: string | null;
 };
 
@@ -133,7 +133,6 @@ export async function POST(
 
     const now = new Date().toISOString();
 
-    // 1) Proyecto
     const proyectoRes = await db.execute({
       sql: `
         SELECT id, visibilidad, modo_acceso, creador_id
@@ -200,7 +199,6 @@ export async function POST(
       );
     }
 
-    // 2) Tarea
     const tareaRes = await db.execute({
       sql: `
         SELECT id, estado
@@ -238,10 +236,9 @@ export async function POST(
       );
     }
 
-    // 3) Asignación activa del usuario
     const asigRes = await db.execute({
       sql: `
-        SELECT id, started_at, completed_at
+        SELECT id, iniciado_en, completado_en
         FROM tarea_asignaciones
         WHERE tarea_id = ?
           AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
@@ -261,21 +258,20 @@ export async function POST(
       );
     }
 
-    // 4) Finalizar cronómetro del usuario en esta tarea si existe
     const registroRes = await db.execute({
       sql: `
         SELECT
           id,
-          started_at,
-          paused_at,
-          stopped_at,
-          total_seconds,
+          iniciado_en,
+          pausado_en,
+          detenido_en,
+          total_segundos,
           estado
         FROM registro_horas
         WHERE tarea_id = ?
           AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
           AND estado IN ('activo', 'pausado')
-        ORDER BY created_at DESC
+        ORDER BY creado_en DESC
         LIMIT 1
       `,
       args: [String(tareaId), userId],
@@ -286,18 +282,18 @@ export async function POST(
 
     if (registro) {
       const registroEstado = String(registro.estado ?? '').toLowerCase().trim();
-      const totalActual = toNumber(registro.total_seconds);
+      const totalActual = toNumber(registro.total_segundos);
 
-      if (registroEstado === 'activo' && registro.started_at) {
-        const extra = diffSeconds(registro.started_at, now);
+      if (registroEstado === 'activo' && registro.iniciado_en) {
+        const extra = diffSeconds(registro.iniciado_en, now);
 
         await db.execute({
           sql: `
             UPDATE registro_horas
-            SET total_seconds = ?,
-                started_at = NULL,
-                paused_at = NULL,
-                stopped_at = ?,
+            SET total_segundos = ?,
+                iniciado_en = NULL,
+                pausado_en = NULL,
+                detenido_en = ?,
                 estado = 'finalizado'
             WHERE id = ?
           `,
@@ -307,9 +303,9 @@ export async function POST(
         await db.execute({
           sql: `
             UPDATE registro_horas
-            SET started_at = NULL,
-                paused_at = NULL,
-                stopped_at = ?,
+            SET iniciado_en = NULL,
+                pausado_en = NULL,
+                detenido_en = ?,
                 estado = 'finalizado'
             WHERE id = ?
           `,
@@ -318,13 +314,12 @@ export async function POST(
       }
     }
 
-    // 5) Cancelar asignación
     try {
       await db.execute({
         sql: `
           UPDATE tarea_asignaciones
           SET estado = 'cancelado',
-              canceled_at = ?
+              cancelado_en = ?
           WHERE id = ?
         `,
         args: [now, String(asig.id)],
@@ -340,15 +335,14 @@ export async function POST(
       });
     }
 
-    // 6) Recalcular estado global
     const trabajandoRes = await db.execute({
       sql: `
         SELECT COUNT(*) AS c
         FROM tarea_asignaciones
         WHERE tarea_id = ?
           AND estado = 'activo'
-          AND started_at IS NOT NULL
-          AND completed_at IS NULL
+          AND iniciado_en IS NOT NULL
+          AND completado_en IS NULL
       `,
       args: [String(tareaId)],
     });
@@ -381,13 +375,12 @@ export async function POST(
       sql: `
         UPDATE tareas
         SET estado = ?,
-            updated_at = ?
+            actualizado_en = ?
         WHERE id = ?
       `,
       args: [nuevoEstado, now, String(tareaId)],
     });
 
-    // 7) Historial
     try {
       await db.execute({
         sql: `
@@ -416,7 +409,6 @@ export async function POST(
       console.error('Historial fallo (no crítico):', e);
     }
 
-    // 8) Devolver asignados activos
     const asignadosRes = await db.execute({
       sql: `
         SELECT
@@ -424,15 +416,15 @@ export async function POST(
           u.nombre,
           u.apellido,
           u.email,
-          COALESCE(ta.selected_at, ta.created_at) AS seleccionada_at,
-          ta.started_at,
-          ta.completed_at
+          COALESCE(ta.seleccionado_en, ta.creado_en) AS seleccionada_at,
+          ta.iniciado_en,
+          ta.completado_en
         FROM tarea_asignaciones ta
         JOIN usuarios u
           ON CAST(u.id AS TEXT) = CAST(ta.usuario_id AS TEXT)
         WHERE ta.tarea_id = ?
           AND ta.estado = 'activo'
-        ORDER BY ta.created_at ASC
+        ORDER BY ta.creado_en ASC
       `,
       args: [String(tareaId)],
     });
@@ -442,7 +434,7 @@ export async function POST(
       activos,
       trabajando,
       estado: nuevoEstado,
-      canceled_at: now,
+      cancelado_en: now,
     };
 
     return NextResponse.json(
