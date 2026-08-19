@@ -193,12 +193,14 @@ const ROL: Record<
     badge:
       'text-fuchsia-300 border-fuchsia-500/40 bg-fuchsia-500/10',
   },
+
   admin: {
     label: 'Admin',
     dot: '#60a5fa',
     badge:
       'text-blue-300 border-blue-500/40 bg-blue-500/10',
   },
+
   colaborador: {
     label: 'Colaborador',
     dot: '#94a3b8',
@@ -349,6 +351,7 @@ const Ic = {
         r="10"
         strokeWidth={2}
       />
+
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -369,7 +372,7 @@ const Ic = {
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth={2}
-        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 01-2-2v12a2 2 0 002 2z"
       />
     </svg>
   ),
@@ -480,7 +483,10 @@ function GridCard({
           c={c}
           size="md"
         />
-        <RolBadge rol={c.rol} />
+
+        <RolBadge
+          rol={c.rol}
+        />
       </div>
 
       <h3 className="text-sm font-bold text-white truncate group-hover:text-purple-300 transition-colors">
@@ -595,7 +601,9 @@ function ListRow({
       </div>
 
       <div className="hidden sm:block flex-shrink-0">
-        <RolBadge rol={c.rol} />
+        <RolBadge
+          rol={c.rol}
+        />
       </div>
 
       <div className="hidden md:flex items-center gap-1.5 w-28 flex-shrink-0">
@@ -750,11 +758,14 @@ export default function ColaboradoresPage() {
               }
             ),
 
-            fetch('/api/user', {
-              method: 'GET',
-              credentials: 'include',
-              cache: 'no-store',
-            }),
+            fetch(
+              '/api/auth/me',
+              {
+                method: 'GET',
+                credentials: 'include',
+                cache: 'no-store',
+              }
+            ),
           ]);
 
         const [listaData, meData] =
@@ -768,10 +779,7 @@ export default function ColaboradoresPage() {
               .catch(() => ({})),
           ]);
 
-        if (
-          !listaRes.ok ||
-          listaData?.ok !== true
-        ) {
+        if (!listaRes.ok) {
           throw new Error(
             typeof listaData?.error ===
               'string'
@@ -782,7 +790,6 @@ export default function ColaboradoresPage() {
 
         if (
           !meRes.ok ||
-          meData?.ok !== true ||
           !meData?.data
         ) {
           throw new Error(
@@ -839,7 +846,7 @@ export default function ColaboradoresPage() {
       }
     };
 
-    load();
+    void load();
   }, []);
 
   const cargarDetalleColaborador =
@@ -865,7 +872,6 @@ export default function ColaboradoresPage() {
 
           if (
             !res.ok ||
-            data?.ok !== true ||
             !data?.usuario
           ) {
             throw new Error(
@@ -1262,12 +1268,15 @@ export default function ColaboradoresPage() {
             <option value="todos">
               Todos los roles
             </option>
+
             <option value="jefe">
               Jefe
             </option>
+
             <option value="admin">
               Admin
             </option>
+
             <option value="colaborador">
               Colaborador
             </option>
@@ -1286,9 +1295,11 @@ export default function ColaboradoresPage() {
             <option value="todos">
               Todos los estados
             </option>
+
             <option value="activos">
               Activos
             </option>
+
             <option value="inactivos">
               Inactivos
             </option>
@@ -1336,15 +1347,19 @@ export default function ColaboradoresPage() {
             <option value="creado_en">
               Fecha de ingreso
             </option>
+
             <option value="nombre">
               Nombre
             </option>
+
             <option value="rol">
               Rol
             </option>
+
             <option value="puesto">
               Puesto
             </option>
+
             <option value="pais">
               País
             </option>
