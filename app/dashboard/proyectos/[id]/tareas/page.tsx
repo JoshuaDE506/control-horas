@@ -1095,27 +1095,30 @@ export default function TareasPage() {
     };
 
   const confirmarCancelarSeleccion =
-    (tareaId: string) => {
-      openConfirm({
-        title:
-          'Cancelar tarea',
+  (tareaId: string) => {
+    openConfirm({
+      title:
+        'Cancelar tarea',
 
-        message:
-          '¿Confirmas cancelar tu participación en esta tarea? Se liberará el cupo asignado.',
+      message:
+        '¿Confirmas cancelar tu participación en esta tarea? Se liberará el cupo asignado.',
 
-        type:
-          'danger',
+      type:
+        'danger',
 
-        confirmText:
-          'Cancelar',
+      confirmText:
+        'Cancelar',
 
-        action: async () => {
-          await cancelarSeleccion(
-            tareaId
-          );
-        },
-      });
-    };
+      cancelText:
+        'Volver',
+
+      action: async () => {
+        await cancelarSeleccion(
+          tareaId
+        );
+      },
+    });
+  };
 
   const confirmarReabrir =
     (tareaId: string) => {
