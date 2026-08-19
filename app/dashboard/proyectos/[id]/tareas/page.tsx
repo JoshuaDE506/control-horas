@@ -141,11 +141,6 @@ function normalizarPermisoGestionTareas(
     return 'todos_miembros';
   }
 
-  /*
-   * Compatibilidad:
-   * owner       -> owner_admin
-   * owner_admin -> owner_admin
-   */
   return 'owner_admin';
 }
 
@@ -1006,12 +1001,6 @@ export default function TareasPage() {
       }
     };
 
-  /*
-   * /estado queda reservado únicamente para
-   * la reapertura administrativa:
-   *
-   * completed -> todo
-   */
   const reabrirTarea =
     async (tareaId: string) => {
       setStarting((p) => ({
@@ -1089,7 +1078,7 @@ export default function TareasPage() {
           'Comenzar tarea',
 
         message:
-          '¿Confirmar comenzar o continuar esta tarea?',
+          '¿Confirmar comenzar esta tarea?',
 
         type:
           'success',
@@ -1109,16 +1098,16 @@ export default function TareasPage() {
     (tareaId: string) => {
       openConfirm({
         title:
-          'Cancelar selección',
+          'Cancelar tarea',
 
         message:
-          '¿Confirmar cancelar tu selección? Se liberará el cupo.',
+          '¿Confirmas cancelar tu participación en esta tarea? Se liberará el cupo asignado.',
 
         type:
           'danger',
 
         confirmText:
-          'Cancelar selección',
+          'Cancelar',
 
         action: async () => {
           await cancelarSeleccion(
@@ -1471,171 +1460,36 @@ export default function TareasPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <ColumnaKanban
-            titulo="Por Hacer"
-            color="gray"
-            tareas={
-              tareasPorEstado.todo
-            }
-            user={user}
-            rolUsuario={
-              rolUsuario
-            }
-            asignados={
-              asignados
-            }
-            onSeleccionar={
-              openModal
-            }
-            onComenzar={
-              confirmarComenzar
-            }
-            onCancelarSeleccion={
-              confirmarCancelarSeleccion
-            }
-            onReabrir={
-              confirmarReabrir
-            }
-            onAbrirInforme={
-              abrirInformeFinal
-            }
-            formatearFecha={
-              formatearFecha
-            }
-            formatearTiempo={
-              formatearTiempo
-            }
-            starting={
-              starting
-            }
-          />
-
-          <ColumnaKanban
-            titulo="En Progreso"
-            color="blue"
-            tareas={
-              tareasPorEstado[
-                'in-progress'
-              ]
-            }
-            user={user}
-            rolUsuario={
-              rolUsuario
-            }
-            asignados={
-              asignados
-            }
-            onSeleccionar={
-              openModal
-            }
-            onComenzar={
-              confirmarComenzar
-            }
-            onCancelarSeleccion={
-              confirmarCancelarSeleccion
-            }
-            onReabrir={
-              confirmarReabrir
-            }
-            onAbrirInforme={
-              abrirInformeFinal
-            }
-            formatearFecha={
-              formatearFecha
-            }
-            formatearTiempo={
-              formatearTiempo
-            }
-            starting={
-              starting
-            }
-          />
-
-          <ColumnaKanban
-            titulo="Revisión"
-            color="amber"
-            tareas={
-              tareasPorEstado.review
-            }
-            user={user}
-            rolUsuario={
-              rolUsuario
-            }
-            asignados={
-              asignados
-            }
-            onSeleccionar={
-              openModal
-            }
-            onComenzar={
-              confirmarComenzar
-            }
-            onCancelarSeleccion={
-              confirmarCancelarSeleccion
-            }
-            onReabrir={
-              confirmarReabrir
-            }
-            onAbrirInforme={
-              abrirInformeFinal
-            }
-            formatearFecha={
-              formatearFecha
-            }
-            formatearTiempo={
-              formatearTiempo
-            }
-            starting={
-              starting
-            }
-          />
-
-          <ColumnaKanban
-            titulo="Completadas"
-            color="green"
-            tareas={
-              tareasPorEstado.completed
-            }
-            user={user}
-            rolUsuario={
-              rolUsuario
-            }
-            asignados={
-              asignados
-            }
-            onSeleccionar={
-              openModal
-            }
-            onComenzar={
-              confirmarComenzar
-            }
-            onCancelarSeleccion={
-              confirmarCancelarSeleccion
-            }
-            onReabrir={
-              confirmarReabrir
-            }
-            onAbrirInforme={
-              abrirInformeFinal
-            }
-            formatearFecha={
-              formatearFecha
-            }
-            formatearTiempo={
-              formatearTiempo
-            }
-            starting={
-              starting
-            }
-          />
+          {[
+            ['Por Hacer', 'gray', tareasPorEstado.todo],
+            ['En Progreso', 'blue', tareasPorEstado['in-progress']],
+            ['Revisión', 'amber', tareasPorEstado.review],
+            ['Completadas', 'green', tareasPorEstado.completed],
+          ].map(([titulo, color, lista]) => (
+            <ColumnaKanban
+              key={titulo as string}
+              titulo={titulo as string}
+              color={color as 'gray' | 'blue' | 'amber' | 'green'}
+              tareas={lista as Tarea[]}
+              user={user}
+              rolUsuario={rolUsuario}
+              asignados={asignados}
+              onSeleccionar={openModal}
+              onComenzar={confirmarComenzar}
+              onCancelarSeleccion={confirmarCancelarSeleccion}
+              onReabrir={confirmarReabrir}
+              onAbrirInforme={abrirInformeFinal}
+              formatearFecha={formatearFecha}
+              formatearTiempo={formatearTiempo}
+              starting={starting}
+            />
+          ))}
         </div>
       </div>
 
       {tareaSeleccionada && (
         <ModalSeleccion
-          tarea={
-            tareaSeleccionada
-          }
+          tarea={tareaSeleccionada}
           asignados={
             asignados[
               tareaSeleccionada.id
@@ -1683,35 +1537,15 @@ interface ColumnaKanbanProps {
   tareas: Tarea[];
   user: any;
   rolUsuario: RolUsuario;
-  asignados: Record<
-    string,
-    Asignado[]
-  >;
-  onSeleccionar: (
-    tarea: Tarea
-  ) => void;
-  onComenzar: (
-    id: string
-  ) => void;
-  onCancelarSeleccion: (
-    id: string
-  ) => void;
-  onReabrir: (
-    id: string
-  ) => void;
-  onAbrirInforme: (
-    tarea: Tarea
-  ) => void;
-  formatearFecha: (
-    fecha: string
-  ) => string;
-  formatearTiempo: (
-    minutos: number | null
-  ) => string | null;
-  starting: Record<
-    string,
-    boolean
-  >;
+  asignados: Record<string, Asignado[]>;
+  onSeleccionar: (tarea: Tarea) => void;
+  onComenzar: (id: string) => void;
+  onCancelarSeleccion: (id: string) => void;
+  onReabrir: (id: string) => void;
+  onAbrirInforme: (tarea: Tarea) => void;
+  formatearFecha: (fecha: string) => string;
+  formatearTiempo: (minutos: number | null) => string | null;
+  starting: Record<string, boolean>;
 }
 
 function ColumnaKanban({
@@ -1780,55 +1614,27 @@ function ColumnaKanban({
             No hay tareas
           </div>
         ) : (
-          tareas.map(
-            (tarea) => (
-              <TareaCard
-                key={
-                  tarea.id
-                }
-                tarea={
-                  tarea
-                }
-                user={
-                  user
-                }
-                rolUsuario={
-                  rolUsuario
-                }
-                asignados={
-                  asignados[
-                    tarea.id
-                  ] ?? []
-                }
-                onSeleccionar={
-                  onSeleccionar
-                }
-                onComenzar={
-                  onComenzar
-                }
-                onCancelarSeleccion={
-                  onCancelarSeleccion
-                }
-                onReabrir={
-                  onReabrir
-                }
-                onAbrirInforme={
-                  onAbrirInforme
-                }
-                formatearFecha={
-                  formatearFecha
-                }
-                formatearTiempo={
-                  formatearTiempo
-                }
-                starting={
-                  !!starting[
-                    tarea.id
-                  ]
-                }
-              />
-            )
-          )
+          tareas.map((tarea) => (
+            <TareaCard
+              key={tarea.id}
+              tarea={tarea}
+              user={user}
+              rolUsuario={rolUsuario}
+              asignados={
+                asignados[tarea.id] ?? []
+              }
+              onSeleccionar={onSeleccionar}
+              onComenzar={onComenzar}
+              onCancelarSeleccion={onCancelarSeleccion}
+              onReabrir={onReabrir}
+              onAbrirInforme={onAbrirInforme}
+              formatearFecha={formatearFecha}
+              formatearTiempo={formatearTiempo}
+              starting={
+                !!starting[tarea.id]
+              }
+            />
+          ))
         )}
       </div>
     </div>
@@ -1844,27 +1650,13 @@ interface TareaCardProps {
   user: any;
   rolUsuario: RolUsuario;
   asignados: Asignado[];
-  onSeleccionar: (
-    tarea: Tarea
-  ) => void;
-  onComenzar: (
-    id: string
-  ) => void;
-  onCancelarSeleccion: (
-    id: string
-  ) => void;
-  onReabrir: (
-    id: string
-  ) => void;
-  onAbrirInforme: (
-    tarea: Tarea
-  ) => void;
-  formatearFecha: (
-    fecha: string
-  ) => string;
-  formatearTiempo: (
-    minutos: number | null
-  ) => string | null;
+  onSeleccionar: (tarea: Tarea) => void;
+  onComenzar: (id: string) => void;
+  onCancelarSeleccion: (id: string) => void;
+  onReabrir: (id: string) => void;
+  onAbrirInforme: (tarea: Tarea) => void;
+  formatearFecha: (fecha: string) => string;
+  formatearTiempo: (minutos: number | null) => string | null;
   starting: boolean;
 }
 
@@ -1931,9 +1723,7 @@ function TareaCard({
         },
       };
 
-      return configs[
-        prioridad
-      ];
+      return configs[prioridad];
     };
 
   const esUsuarioAsignado =
@@ -1955,8 +1745,7 @@ function TareaCard({
 
   const tiempoFormateado =
     formatearTiempo(
-      tarea
-        .tiempo_estimado_minutos
+      tarea.tiempo_estimado_minutos
     );
 
   const irAConfiguracionesTarea =
@@ -2002,9 +1791,7 @@ function TareaCard({
 
         {tarea.descripcion && (
           <p className="mb-2 line-clamp-2 break-words text-xs text-gray-400">
-            {
-              tarea.descripcion
-            }
+            {tarea.descripcion}
           </p>
         )}
 
@@ -2013,15 +1800,11 @@ function TareaCard({
             className={`flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-semibold ${prioridadConfig.badge}`}
           >
             <span>
-              {
-                prioridadConfig.icon
-              }
+              {prioridadConfig.icon}
             </span>
 
             <span>
-              {
-                prioridadConfig.texto
-              }
+              {prioridadConfig.texto}
             </span>
           </span>
 
@@ -2039,9 +1822,7 @@ function TareaCard({
                 />
               </svg>
 
-              {
-                tiempoFormateado
-              }
+              {tiempoFormateado}
             </span>
           )}
 
@@ -2055,9 +1836,7 @@ function TareaCard({
             </svg>
 
             {asignados.length}/
-            {
-              tarea.max_participantes
-            }
+            {tarea.max_participantes}
           </span>
         </div>
 
@@ -2114,19 +1893,13 @@ function TareaCard({
         'in-progress' &&
         esUsuarioAsignado && (
           <div className="mt-2 space-y-2 border-t border-white/5 pt-2">
-            {/*
-              /comenzar es idempotente respecto al bloque activo
-              y además permite iniciar un nuevo bloque después
-              de un rechazo, cuando el bloque anterior ya está
-              finalizado.
-            */}
             <button
               type="button"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
 
-                onComenzar(
+                onCancelarSeleccion(
                   tarea.id
                 );
               }}
@@ -2134,8 +1907,8 @@ function TareaCard({
               className="w-full rounded bg-gradient-to-r from-purple-600 to-pink-600 px-2 py-1 text-xs font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50"
             >
               {starting
-                ? 'Comenzando...'
-                : '▶️ Comenzar / Continuar Tarea'}
+                ? 'Cancelando...'
+                : '✕ Cancelar'}
             </button>
 
             <button
@@ -2316,9 +2089,7 @@ function ModalSeleccion({
         },
       };
 
-      return configs[
-        prioridad
-      ];
+      return configs[prioridad];
     };
 
   const prioridadConfig =
@@ -2328,8 +2099,7 @@ function ModalSeleccion({
 
   const tiempoFormateado =
     formatearTiempo(
-      tarea
-        .tiempo_estimado_minutos
+      tarea.tiempo_estimado_minutos
     );
 
   return (
@@ -2341,9 +2111,7 @@ function ModalSeleccion({
 
         {tarea.descripcion && (
           <p className="mb-4 break-words text-sm text-gray-400">
-            {
-              tarea.descripcion
-            }
+            {tarea.descripcion}
           </p>
         )}
 
@@ -2352,54 +2120,23 @@ function ModalSeleccion({
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold ${prioridadConfig.badge}`}
           >
             <span>
-              {
-                prioridadConfig.icon
-              }
+              {prioridadConfig.icon}
             </span>
 
             <span>
               Prioridad:{' '}
-              {
-                prioridadConfig.texto
-              }
+              {prioridadConfig.texto}
             </span>
           </span>
 
           {tiempoFormateado && (
             <span className="flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-sm font-semibold text-purple-400">
-              <svg
-                className="h-4 w-4"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                  clipRule="evenodd"
-                />
-              </svg>
-
-              {
-                tiempoFormateado
-              }
+              {tiempoFormateado}
             </span>
           )}
 
           <span className="flex items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-sm font-semibold text-indigo-400">
-            <svg
-              className="h-4 w-4"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.972 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-            </svg>
-
-            <span>
-              Max:{' '}
-              {
-                tarea.max_participantes
-              }
-            </span>
+            Max: {tarea.max_participantes}
           </span>
         </div>
 
@@ -2410,16 +2147,11 @@ function ModalSeleccion({
             </div>
 
             <div className="text-sm font-semibold text-white">
-              {asignados.length}{' '}
-              /{' '}
-              {
-                tarea.max_participantes
-              }
+              {asignados.length} / {tarea.max_participantes}
             </div>
           </div>
 
-          {asignados.length >
-          0 ? (
+          {asignados.length > 0 ? (
             <div className="mt-3 space-y-2">
               {asignados.map(
                 (
@@ -2448,19 +2180,12 @@ function ModalSeleccion({
 
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-white">
-                        {
-                          asignado.nombre
-                        }{' '}
-                        {
-                          asignado.apellido ||
-                          ''
-                        }
+                        {asignado.nombre}{' '}
+                        {asignado.apellido || ''}
                       </p>
 
                       <p className="truncate text-xs text-gray-500">
-                        {
-                          asignado.email
-                        }
+                        {asignado.email}
                       </p>
                     </div>
 
@@ -2473,20 +2198,6 @@ function ModalSeleccion({
             </div>
           ) : (
             <div className="py-4 text-center">
-              <svg
-                className="mx-auto mb-2 h-10 w-10 text-gray-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.972 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                />
-              </svg>
-
               <p className="text-xs text-gray-500">
                 Nadie ha seleccionado esta tarea aún
               </p>
@@ -2531,9 +2242,7 @@ function ModalSeleccion({
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
-            onClick={
-              onCancelar
-            }
+            onClick={onCancelar}
             className="flex-1 rounded-lg border border-white/10 bg-slate-800/50 px-4 py-2 font-semibold text-gray-300 transition-all hover:bg-slate-700/50"
           >
             Cancelar
@@ -2541,9 +2250,7 @@ function ModalSeleccion({
 
           <button
             type="button"
-            onClick={
-              onSeleccionar
-            }
+            onClick={onSeleccionar}
             disabled={
               comenzando ||
               cupoLleno ||
