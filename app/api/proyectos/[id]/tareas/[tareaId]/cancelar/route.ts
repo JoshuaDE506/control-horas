@@ -1,4 +1,4 @@
-// app/api/proyectos/[id]/tareas/[tareaId]/informes/route.ts
+// app/api/proyectos/[id]/tareas/[tareaId]/cancelar/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
@@ -13,15 +13,16 @@ export const runtime = 'nodejs';
  * =========================================================
  */
 
+type Params = {
+  id: string;
+  tareaId: string;
+};
+
 type EstadoTarea =
   | 'todo'
   | 'in-progress'
   | 'review'
   | 'completed';
-
-type TipoInforme =
-  | 'avance'
-  | 'final';
 
 type ProyectoRow = {
   id: number | bigint | null;
@@ -31,19 +32,25 @@ type ProyectoRow = {
 type TareaRow = {
   id: string;
   estado: string | null;
-  proyecto_id: number | bigint | null;
-  ultimo_rechazo_comentario?: string | null;
 };
 
-type InformeRow = {
+type AsignacionRow = {
   id: string;
-  tarea_id: string;
-  usuario_id: string;
-  tipo: string | null;
-  titulo: string | null;
-  descripcion: string | null;
-  url_archivo: string | null;
-  creado_en: string | null;
+  iniciado_en: string | null;
+  completado_en: string | null;
+};
+
+type CountRow = {
+  c: number | bigint | null;
+};
+
+type RegistroHorasRow = {
+  id: string;
+  iniciado_en: string | null;
+  pausado_en: string | null;
+  detenido_en: string | null;
+  total_segundos: number | bigint | null;
+  estado: string | null;
 };
 
 /**
@@ -51,6 +58,16 @@ type InformeRow = {
  * 🔄 HELPERS
  * =========================================================
  */
+
+async function getParams(
+  context: {
+    params:
+      | Params
+      | Promise<Params>;
+  }
+): Promise<Params> {
+  return await context.params;
+}
 
 function castRows<T>(
   rows: unknown[]
@@ -71,6 +88,20 @@ function toProjectId(
   }
 
   return parsed;
+}
+
+function toNumber(
+  value:
+    | number
+    | bigint
+    | null
+    | undefined
+): number {
+  if (value == null) {
+    return 0;
+  }
+
+  return Number(value);
 }
 
 /**
@@ -115,163 +146,65 @@ function normalizeEstado(
 
 /**
  * =========================================================
- * 📄 NORMALIZAR TIPO DE INFORME
+ * ⏱️ CALCULAR SEGUNDOS
  * =========================================================
  */
-function normalizeTipoInforme(
-  raw: unknown
-): TipoInforme | null {
-  const value = String(raw ?? '')
-    .toLowerCase()
-    .trim();
+function diffSeconds(
+  fromIso: string,
+  toIso: string
+): number {
+  const from =
+    new Date(fromIso).getTime();
 
-  if (value === 'avance') {
-    return 'avance';
+  const to =
+    new Date(toIso).getTime();
+
+  if (
+    !Number.isFinite(from) ||
+    !Number.isFinite(to)
+  ) {
+    return 0;
   }
 
-  if (value === 'final') {
-    return 'final';
-  }
-
-  return null;
+  return Math.max(
+    0,
+    Math.floor(
+      (to - from) / 1000
+    )
+  );
 }
 
 /**
  * =========================================================
- * 📦 MAPEAR INFORME
+ * POST /api/proyectos/[id]/tareas/[tareaId]/cancelar
  * =========================================================
+ *
+ * Cancela la participación del usuario actual.
+ *
+ * Flujo:
+ *
+ * selección activa
+ *      ↓
+ * cancelar
+ *      ↓
+ * registro_horas = finalizado
+ *      ↓
+ * tarea_asignaciones.estado = cancelado
+ *
+ * Luego se revisa si quedan otros participantes trabajando.
+ *
+ * Si queda alguien trabajando:
+ *   tarea = in-progress
+ *
+ * Si nadie está trabajando:
+ *   tarea = todo
  */
-function mapInforme(
-  row: InformeRow
-) {
-  return {
-    id:
-      String(row.id),
-
-    tarea_id:
-      String(row.tarea_id),
-
-    usuario_id:
-      String(row.usuario_id),
-
-    tipo:
-      normalizeTipoInforme(
-        row.tipo
-      ),
-
-    titulo:
-      row.titulo ?? '',
-
-    descripcion:
-      row.descripcion ?? '',
-
-    url_archivo:
-      row.url_archivo ?? null,
-
-    creado_en:
-      row.creado_en ?? null,
-  };
-}
-
-/**
- * =========================================================
- * 🔐 VALIDAR ACCESO AL PROYECTO
- * =========================================================
- *
- * Los informes forman parte de la información interna.
- *
- * Solo pueden acceder:
- *
- * - owner
- * - admin
- * - miembro
- */
-async function validarAccesoProyecto(
-  proyectoId: number,
-  userId: string
-): Promise<{
-  proyecto: ProyectoRow | null;
-  esCreador: boolean;
-  esMiembro: boolean;
-}> {
-  const proyectoRes =
-    await db.execute({
-      sql: `
-        SELECT
-          id,
-          creador_id
-        FROM proyectos
-        WHERE id = ?
-        LIMIT 1
-      `,
-      args: [proyectoId],
-    });
-
-  const proyectoRows =
-    castRows<ProyectoRow>(
-      proyectoRes.rows
-    );
-
-  const proyecto =
-    proyectoRows[0] ?? null;
-
-  if (!proyecto) {
-    return {
-      proyecto: null,
-      esCreador: false,
-      esMiembro: false,
-    };
-  }
-
-  const esCreador =
-    String(
-      proyecto.creador_id ?? ''
-    ) === String(userId);
-
-  const memberRes =
-    await db.execute({
-      sql: `
-        SELECT 1
-        FROM proyecto_usuarios
-        WHERE proyecto_id = ?
-          AND CAST(usuario_id AS TEXT)
-            = CAST(? AS TEXT)
-        LIMIT 1
-      `,
-      args: [
-        proyectoId,
-        userId,
-      ],
-    });
-
-  const esMiembro =
-    Boolean(
-      memberRes.rows?.length
-    );
-
-  return {
-    proyecto,
-    esCreador,
-    esMiembro,
-  };
-}
-
-/**
- * =========================================================
- * GET /api/proyectos/[id]/tareas/[tareaId]/informes
- * =========================================================
- *
- * Lista todos los informes asociados a una tarea.
- */
-export async function GET(
+export async function POST(
   req: NextRequest,
-  {
-    params,
-  }: {
-    params: Promise<{
-      id: string;
-      tareaId: string;
-    }>;
+  context: {
+    params:
+      | Params
+      | Promise<Params>;
   }
 ) {
   try {
@@ -304,7 +237,9 @@ export async function GET(
     const {
       id,
       tareaId,
-    } = await params;
+    } = await getParams(
+      context
+    );
 
     const proyectoId =
       toProjectId(id);
@@ -323,61 +258,38 @@ export async function GET(
       );
     }
 
+    const now =
+      new Date().toISOString();
+
     /**
      * =====================================================
-     * 📋 VALIDAR TAREA
+     * 📁 VALIDAR PROYECTO
      * =====================================================
      */
-    const tareaRes =
+    const proyectoRes =
       await db.execute({
         sql: `
           SELECT
             id,
-            estado,
-            proyecto_id,
-            ultimo_rechazo_comentario
-          FROM tareas
+            creador_id
+          FROM proyectos
           WHERE id = ?
-            AND proyecto_id = ?
           LIMIT 1
         `,
         args: [
-          String(tareaId),
           proyectoId,
         ],
       });
 
-    const tareaRows =
-      castRows<TareaRow>(
-        tareaRes.rows
+    const proyectoRows =
+      castRows<ProyectoRow>(
+        proyectoRes.rows
       );
 
-    const tarea =
-      tareaRows[0];
+    const proyecto =
+      proyectoRows[0];
 
-    if (!tarea) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Tarea no existe',
-        },
-        { status: 404 }
-      );
-    }
-
-    /**
-     * =====================================================
-     * 🔐 VALIDAR ACCESO AL PROYECTO
-     * =====================================================
-     */
-    const acceso =
-      await validarAccesoProyecto(
-        proyectoId,
-        userId
-      );
-
-    if (!acceso.proyecto) {
+    if (!proyecto) {
       return NextResponse.json(
         {
           ok: false,
@@ -388,282 +300,40 @@ export async function GET(
       );
     }
 
-    if (
-      !acceso.esCreador &&
-      !acceso.esMiembro
-    ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Sin acceso a los informes de esta tarea',
-        },
-        { status: 403 }
-      );
-    }
-
     /**
      * =====================================================
-     * 📄 OBTENER INFORMES
+     * 👥 VALIDAR MEMBRESÍA
      * =====================================================
      */
-    const informesRes =
+    const esCreador =
+      String(
+        proyecto.creador_id ?? ''
+      ) === userId;
+
+    const memberRes =
       await db.execute({
         sql: `
-          SELECT
-            id,
-            tarea_id,
-            usuario_id,
-            tipo,
-            titulo,
-            descripcion,
-            url_archivo,
-            creado_en
-          FROM tarea_informes
-          WHERE tarea_id = ?
-          ORDER BY creado_en DESC
+          SELECT 1
+          FROM proyecto_usuarios
+          WHERE proyecto_id = ?
+            AND CAST(usuario_id AS TEXT)
+              = CAST(? AS TEXT)
+          LIMIT 1
         `,
         args: [
-          String(tareaId),
+          proyectoId,
+          userId,
         ],
       });
 
-    const informes =
-      castRows<InformeRow>(
-        informesRes.rows
-      ).map(
-        mapInforme
+    const esMiembro =
+      Boolean(
+        memberRes.rows?.length
       );
-
-    /**
-     * =====================================================
-     * ✅ RESPUESTA
-     * =====================================================
-     */
-    return NextResponse.json(
-      {
-        ok: true,
-
-        informes,
-
-        meta: {
-          estado_tarea:
-            normalizeEstado(
-              tarea.estado
-            ),
-
-          comentario_revision:
-            tarea
-              .ultimo_rechazo_comentario ??
-            null,
-
-          es_creador:
-            acceso.esCreador,
-
-          es_miembro:
-            true,
-        },
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error(
-      'GET /api/proyectos/[id]/tareas/[tareaId]/informes error:',
-      error
-    );
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          'Error interno del servidor',
-      },
-      { status: 500 }
-    );
-  }
-}
-
-/**
- * =========================================================
- * POST /api/proyectos/[id]/tareas/[tareaId]/informes
- * =========================================================
- *
- * Permite subir:
- *
- * - informe de avance
- * - informe final
- *
- * El usuario debe:
- *
- * - formar parte del proyecto
- * - estar asignado activamente a la tarea
- * - haber comenzado la tarea
- *
- * IMPORTANTE:
- *
- * Crear un informe final NO cambia automáticamente
- * el estado de la tarea a review.
- *
- * /completar sigue siendo la ruta encargada de:
- *
- * in-progress → review
- *
- * y de detener el cronómetro.
- */
-export async function POST(
-  req: NextRequest,
-  {
-    params,
-  }: {
-    params: Promise<{
-      id: string;
-      tareaId: string;
-    }>;
-  }
-) {
-  try {
-    /**
-     * =====================================================
-     * 🔐 VALIDAR USUARIO
-     * =====================================================
-     */
-    const sessionUser =
-      await getAuthenticatedUser(req);
-
-    if (!sessionUser) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'No autenticado',
-        },
-        { status: 401 }
-      );
-    }
-
-    const userId =
-      String(sessionUser.id);
-
-    /**
-     * =====================================================
-     * 📁 VALIDAR PARÁMETROS
-     * =====================================================
-     */
-    const {
-      id,
-      tareaId,
-    } = await params;
-
-    const proyectoId =
-      toProjectId(id);
 
     if (
-      proyectoId == null ||
-      !tareaId
-    ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Parámetros inválidos',
-        },
-        { status: 400 }
-      );
-    }
-
-    /**
-     * =====================================================
-     * 📝 LEER INFORME
-     * =====================================================
-     */
-    const body =
-      await req
-        .json()
-        .catch(() => ({}));
-
-    const tipo =
-      normalizeTipoInforme(
-        body?.tipo
-      );
-
-    const titulo =
-      typeof body?.titulo === 'string'
-        ? body.titulo.trim()
-        : '';
-
-    const descripcion =
-      typeof body?.descripcion === 'string'
-        ? body.descripcion.trim()
-        : '';
-
-    const archivoUrl =
-      typeof body?.url_archivo === 'string' &&
-      body.url_archivo.trim()
-        ? body.url_archivo.trim()
-        : null;
-
-    /**
-     * =====================================================
-     * ✅ VALIDACIONES DEL INFORME
-     * =====================================================
-     */
-    if (!tipo) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'El tipo de informe es inválido',
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!titulo) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'El título del informe es obligatorio',
-        },
-        { status: 400 }
-      );
-    }
-
-    if (!descripcion) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'La descripción del informe es obligatoria',
-        },
-        { status: 400 }
-      );
-    }
-
-    /**
-     * =====================================================
-     * 🔐 VALIDAR PROYECTO
-     * =====================================================
-     */
-    const acceso =
-      await validarAccesoProyecto(
-        proyectoId,
-        userId
-      );
-
-    if (!acceso.proyecto) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Proyecto no existe',
-        },
-        { status: 404 }
-      );
-    }
-
-    if (
-      !acceso.esCreador &&
-      !acceso.esMiembro
+      !esCreador &&
+      !esMiembro
     ) {
       return NextResponse.json(
         {
@@ -685,9 +355,7 @@ export async function POST(
         sql: `
           SELECT
             id,
-            estado,
-            proyecto_id,
-            ultimo_rechazo_comentario
+            estado
           FROM tareas
           WHERE id = ?
             AND proyecto_id = ?
@@ -718,55 +386,40 @@ export async function POST(
       );
     }
 
-    const estadoTarea =
+    const estadoAnterior =
       normalizeEstado(
         tarea.estado
       );
 
     /**
-     * =====================================================
-     * 🔒 VALIDAR ESTADO
-     * =====================================================
+     * No se puede cancelar una tarea ya finalizada.
      */
     if (
-      estadoTarea ===
+      estadoAnterior ===
       'completed'
     ) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            'No puedes crear informes para una tarea completada',
-        },
-        { status: 409 }
-      );
-    }
-
-    if (
-      estadoTarea === 'review'
-    ) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'No puedes crear informes mientras la tarea está en revisión',
+            'No puedes cancelar una tarea completada',
         },
         { status: 409 }
       );
     }
 
     /**
-     * Una tarea en "todo" todavía no ha comenzado.
+     * Durante review se espera decisión del supervisor.
      */
     if (
-      estadoTarea !==
-      'in-progress'
+      estadoAnterior ===
+      'review'
     ) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            'Debes comenzar la tarea antes de crear informes',
+            'No puedes cancelar una tarea que está en revisión',
         },
         { status: 409 }
       );
@@ -774,7 +427,7 @@ export async function POST(
 
     /**
      * =====================================================
-     * 👤 VALIDAR ASIGNACIÓN ACTIVA
+     * 👤 OBTENER ASIGNACIÓN ACTIVA
      * =====================================================
      */
     const asignacionRes =
@@ -782,7 +435,8 @@ export async function POST(
         sql: `
           SELECT
             id,
-            iniciado_en
+            iniciado_en,
+            completado_en
           FROM tarea_asignaciones
           WHERE tarea_id = ?
             AND CAST(usuario_id AS TEXT)
@@ -796,107 +450,263 @@ export async function POST(
         ],
       });
 
+    const asignacionRows =
+      castRows<AsignacionRow>(
+        asignacionRes.rows
+      );
+
     const asignacion =
-      asignacionRes.rows?.[0] as
-        | {
-            id?: string;
-            iniciado_en?: string | null;
-          }
-        | undefined;
+      asignacionRows[0];
 
     if (!asignacion) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            'No estás asignado activamente a esta tarea',
+            'No tienes una selección activa en esta tarea',
         },
         { status: 403 }
       );
     }
 
     /**
-     * Además de seleccionarla, debe haber iniciado
-     * realmente el trabajo.
+     * =====================================================
+     * ⏱️ CERRAR REGISTRO DE HORAS
+     * =====================================================
+     *
+     * Si el usuario había comenzado a trabajar,
+     * cerramos su bloque de tiempo.
+     *
+     * Si solo seleccionó pero nunca comenzó,
+     * probablemente no exista registro_horas.
      */
-    if (!asignacion.iniciado_en) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'Debes comenzar la tarea antes de crear informes',
-        },
-        { status: 409 }
+    const registroRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            iniciado_en,
+            pausado_en,
+            detenido_en,
+            total_segundos,
+            estado
+          FROM registro_horas
+          WHERE tarea_id = ?
+            AND CAST(usuario_id AS TEXT)
+              = CAST(? AS TEXT)
+            AND estado IN (
+              'activo',
+              'pausado'
+            )
+          ORDER BY creado_en DESC
+          LIMIT 1
+        `,
+        args: [
+          String(tareaId),
+          userId,
+        ],
+      });
+
+    const registroRows =
+      castRows<RegistroHorasRow>(
+        registroRes.rows
       );
+
+    const registro =
+      registroRows[0];
+
+    if (registro) {
+      const registroEstado =
+        String(
+          registro.estado ?? ''
+        )
+          .toLowerCase()
+          .trim();
+
+      const totalActual =
+        toNumber(
+          registro.total_segundos
+        );
+
+      /**
+       * Si estaba activo, sumamos el tramo abierto.
+       */
+      if (
+        registroEstado ===
+          'activo' &&
+        registro.iniciado_en
+      ) {
+        const extra =
+          diffSeconds(
+            registro.iniciado_en,
+            now
+          );
+
+        await db.execute({
+          sql: `
+            UPDATE registro_horas
+            SET
+              total_segundos = ?,
+              iniciado_en = NULL,
+              pausado_en = NULL,
+              detenido_en = ?,
+              estado = 'finalizado'
+            WHERE id = ?
+          `,
+          args: [
+            totalActual + extra,
+            now,
+            String(registro.id),
+          ],
+        });
+      } else {
+        /**
+         * Si estaba pausado, el tiempo ya estaba
+         * acumulado.
+         */
+        await db.execute({
+          sql: `
+            UPDATE registro_horas
+            SET
+              iniciado_en = NULL,
+              pausado_en = NULL,
+              detenido_en = ?,
+              estado = 'finalizado'
+            WHERE id = ?
+          `,
+          args: [
+            now,
+            String(registro.id),
+          ],
+        });
+      }
     }
 
     /**
      * =====================================================
-     * ➕ CREAR INFORME
+     * ❌ CANCELAR ASIGNACIÓN
      * =====================================================
+     *
+     * completado_en NO se establece.
+     *
+     * El usuario abandonó la tarea; no la completó.
      */
-    const informeId =
-      randomUUID();
-
-    const now =
-      new Date().toISOString();
-
     await db.execute({
       sql: `
-        INSERT INTO tarea_informes (
-          id,
-          tarea_id,
-          usuario_id,
-          tipo,
-          titulo,
-          descripcion,
-          url_archivo,
-          creado_en
-        )
-        VALUES (
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?
-        )
+        UPDATE tarea_asignaciones
+        SET
+          estado = 'cancelado',
+          cancelado_en = ?,
+          completado_en = NULL
+        WHERE id = ?
       `,
       args: [
-        informeId,
-        String(tareaId),
-        userId,
-        tipo,
-        titulo,
-        descripcion,
-        archivoUrl,
         now,
+        String(
+          asignacion.id
+        ),
       ],
     });
 
     /**
      * =====================================================
-     * 🧹 LIMPIAR COMENTARIO DE RECHAZO
+     * 👷 CONTAR PARTICIPANTES TRABAJANDO
      * =====================================================
      *
-     * Si el colaborador volvió a trabajar tras un rechazo
-     * y presenta un nuevo informe, eliminamos el comentario
-     * pendiente de la tarea.
+     * Solo cuentan como trabajando los participantes:
      *
-     * El historial conserva el rechazo anterior.
+     * - activos
+     * - que ya iniciaron
+     * - que no están completados
      */
+    const trabajandoRes =
+      await db.execute({
+        sql: `
+          SELECT
+            COUNT(*) AS c
+          FROM tarea_asignaciones
+          WHERE tarea_id = ?
+            AND estado = 'activo'
+            AND iniciado_en IS NOT NULL
+            AND completado_en IS NULL
+        `,
+        args: [
+          String(tareaId),
+        ],
+      });
+
+    const trabajandoRows =
+      castRows<CountRow>(
+        trabajandoRes.rows
+      );
+
+    const trabajando =
+      toNumber(
+        trabajandoRows[0]?.c
+      );
+
+    /**
+     * =====================================================
+     * 👥 CONTAR ASIGNACIONES ACTIVAS
+     * =====================================================
+     */
+    const activosRes =
+      await db.execute({
+        sql: `
+          SELECT
+            COUNT(*) AS c
+          FROM tarea_asignaciones
+          WHERE tarea_id = ?
+            AND estado = 'activo'
+        `,
+        args: [
+          String(tareaId),
+        ],
+      });
+
+    const activosRows =
+      castRows<CountRow>(
+        activosRes.rows
+      );
+
+    const activos =
+      toNumber(
+        activosRows[0]?.c
+      );
+
+    /**
+     * =====================================================
+     * 📋 RECALCULAR ESTADO DE LA TAREA
+     * =====================================================
+     *
+     * Si todavía existe alguien trabajando:
+     *
+     * in-progress
+     *
+     * Si nadie está trabajando:
+     *
+     * todo
+     *
+     * Puede haber usuarios que solo hayan seleccionado
+     * la tarea. Eso no significa que ya haya comenzado.
+     */
+    const nuevoEstado:
+      EstadoTarea =
+      trabajando > 0
+        ? 'in-progress'
+        : 'todo';
+
     await db.execute({
       sql: `
         UPDATE tareas
         SET
-          ultimo_rechazo_comentario = NULL,
+          estado = ?,
           actualizado_en = ?
         WHERE id = ?
           AND proyecto_id = ?
       `,
       args: [
+        nuevoEstado,
         now,
         String(tareaId),
         proyectoId,
@@ -934,11 +744,9 @@ export async function POST(
           randomUUID(),
           String(tareaId),
           userId,
-          estadoTarea,
-          estadoTarea,
-          tipo === 'final'
-            ? 'Subió informe final'
-            : 'Subió informe de avance',
+          estadoAnterior,
+          nuevoEstado,
+          'Canceló selección',
           now,
         ],
       });
@@ -951,84 +759,126 @@ export async function POST(
 
     /**
      * =====================================================
-     * 🔎 RECARGAR INFORME
+     * 👥 RECARGAR ASIGNADOS ACTIVOS
      * =====================================================
      */
-    const informeRes =
+    const asignadosRes =
       await db.execute({
         sql: `
           SELECT
-            id,
-            tarea_id,
-            usuario_id,
-            tipo,
-            titulo,
-            descripcion,
-            url_archivo,
-            creado_en
-          FROM tarea_informes
-          WHERE id = ?
-          LIMIT 1
+            u.id,
+            u.nombre,
+            u.apellido,
+            u.email,
+
+            COALESCE(
+              ta.seleccionado_en,
+              ta.creado_en
+            ) AS seleccionada_at,
+
+            ta.iniciado_en,
+            ta.completado_en
+
+          FROM tarea_asignaciones ta
+
+          JOIN usuarios u
+            ON CAST(u.id AS TEXT)
+             = CAST(ta.usuario_id AS TEXT)
+
+          WHERE ta.tarea_id = ?
+            AND ta.estado = 'activo'
+
+          ORDER BY
+            ta.creado_en ASC
         `,
         args: [
-          informeId,
+          String(tareaId),
         ],
       });
 
-    const informeRows =
-      castRows<InformeRow>(
-        informeRes.rows
-      );
+    /**
+     * =====================================================
+     * 📊 TOTAL DE TIEMPO DEL USUARIO EN LA TAREA
+     * =====================================================
+     *
+     * Aunque haya cancelado, el tiempo realmente trabajado
+     * se conserva para reportes.
+     */
+    const totalHorasRes =
+      await db.execute({
+        sql: `
+          SELECT
+            COALESCE(
+              SUM(total_segundos),
+              0
+            ) AS total_segundos
+          FROM registro_horas
+          WHERE tarea_id = ?
+            AND CAST(usuario_id AS TEXT)
+              = CAST(? AS TEXT)
+        `,
+        args: [
+          String(tareaId),
+          userId,
+        ],
+      });
 
-    const informe =
-      informeRows[0]
-        ? mapInforme(
-            informeRows[0]
-          )
-        : null;
+    const totalRow =
+      totalHorasRes.rows?.[0] as
+        | {
+            total_segundos?:
+              | number
+              | bigint
+              | null;
+          }
+        | undefined;
 
-    if (!informe) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            'El informe fue guardado, pero no pudo recargarse',
-        },
-        { status: 500 }
+    const totalSegundos =
+      Number(
+        totalRow?.total_segundos ??
+          0
       );
-    }
 
     /**
      * =====================================================
-     * ✅ RESPUESTA
+     * 📦 RESPUESTA
      * =====================================================
      */
+    const payload = {
+      asignados:
+        asignadosRes.rows ?? [],
+
+      activos,
+
+      trabajando,
+
+      estado:
+        nuevoEstado,
+
+      cancelado_en:
+        now,
+
+      total_segundos:
+        totalSegundos,
+    };
+
     return NextResponse.json(
       {
         ok: true,
 
         message:
-          'Informe guardado correctamente',
+          'Selección cancelada correctamente',
 
-        data: {
-          informe,
-        },
+        data:
+          payload,
 
-        informe,
-
-        meta: {
-          estado_tarea:
-            estadoTarea,
-
-          requiere_envio_revision:
-            tipo === 'final',
-        },
+        ...payload,
       },
-      { status: 201 }
+      { status: 200 }
     );
   } catch (error) {
     console.error(
-      'POST /api/proyectos/[id]/tareas/[tareaId]/informes error:',
+      'POST /api/proyectos/[id]/tareas/[tareaId]/cancelar error:',
       error
     );
 
