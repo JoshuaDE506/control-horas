@@ -3,8 +3,8 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import CountrySelect from 'components/country/countrySelect';
-import CountryComboBox from 'components/country/countryComboBox';
+import CountrySelect from '@/components/country/countrySelect';
+import CountryComboBox from '@/components/country/countryComboBox';
 import { countries } from '@/lib/countries';
 
 const isValidPassword = (password: string) => {
