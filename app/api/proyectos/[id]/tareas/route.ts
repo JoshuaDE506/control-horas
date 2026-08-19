@@ -1,27 +1,49 @@
 // app/api/proyectos/[id]/tareas/route.ts
+
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { getAuthenticatedUser } from '@/lib/auth';
 
-type RolProyecto = 'owner' | 'admin' | 'miembro' | 'ninguno';
-type PermisoProyecto = 'owner' | 'owner_admin' | 'all_members';
-type ModoAccesoProyecto = 'privado' | 'publico' | 'solicitud';
+export const runtime = 'nodejs';
+
+/**
+ * =========================================================
+ * 📌 TIPOS AUXILIARES
+ * =========================================================
+ */
+
+type RolProyecto =
+  | 'owner'
+  | 'admin'
+  | 'miembro'
+  | 'ninguno';
+
+type PermisoProyecto =
+  | 'owner_admin'
+  | 'todos_miembros';
+
+type TareaEstado =
+  | 'todo'
+  | 'in-progress'
+  | 'review'
+  | 'completed';
+
+type TareaPrioridad =
+  | 'baja'
+  | 'media'
+  | 'alta'
+  | 'critica';
 
 type ProyectoRow = {
   id: number | bigint;
-  creador_id: string;
-  modo_acceso: string | null;
-  visibilidad: string | null;
+  creador_id: string | null;
   permiso_gestionar_tareas: string | null;
 };
 
 type RolRow = {
   rol?: string | null;
 };
-
-type TareaEstado = 'todo' | 'in-progress' | 'review' | 'completed';
-type TareaPrioridad = 'baja' | 'media' | 'alta' | 'critica';
 
 type TareaRow = {
   id: string;
@@ -39,127 +61,228 @@ type TareaRow = {
   permiso_edicion: string | null;
 };
 
+/**
+ * =========================================================
+ * 🔄 HELPERS
+ * =========================================================
+ */
+
 function castRows<T>(rows: unknown[]): T[] {
   return rows as T[];
 }
 
-function toNumber(value: number | bigint | null | undefined): number | null {
-  if (value == null) return null;
-  return typeof value === 'bigint' ? Number(value) : Number(value);
+function toNumber(
+  value: number | bigint | null | undefined
+): number | null {
+  if (value == null) {
+    return null;
+  }
+
+  return Number(value);
 }
 
-function normalizarPermisoDesdeDB(raw: unknown): PermisoProyecto {
-  const value = String(raw ?? '').toLowerCase().trim();
+function toProjectId(
+  value: string
+): number | null {
+  const parsed = Number(value);
 
-  if (value === 'owner') return 'owner';
-  if (value === 'owner_admin') return 'owner_admin';
-  if (value === 'all_members') return 'all_members';
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < 1
+  ) {
+    return null;
+  }
 
-  return 'owner_admin';
+  return parsed;
 }
 
-function normalizarRolProyecto(raw: unknown): RolProyecto {
-  const value = String(raw ?? '').toLowerCase().trim();
+/**
+ * =========================================================
+ * 👤 NORMALIZAR ROL
+ * =========================================================
+ */
+function normalizarRolProyecto(
+  raw: unknown
+): RolProyecto {
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
-  if (value === 'owner' || value === 'dueño' || value === 'dueno') return 'owner';
-  if (value === 'admin' || value === 'administrador') return 'admin';
-  if (value === 'miembro' || value === 'member') return 'miembro';
+  if (
+    value === 'owner' ||
+    value === 'dueño' ||
+    value === 'dueno'
+  ) {
+    return 'owner';
+  }
+
+  if (
+    value === 'admin' ||
+    value === 'administrador'
+  ) {
+    return 'admin';
+  }
+
+  if (
+    value === 'miembro' ||
+    value === 'member'
+  ) {
+    return 'miembro';
+  }
 
   return 'ninguno';
 }
 
-function normalizarModoAcceso(
-  rawModo: unknown,
-  rawVisibilidad?: unknown
-): ModoAccesoProyecto {
-  const modo = String(rawModo ?? '').toLowerCase().trim();
-  const visibilidad = String(rawVisibilidad ?? '').toLowerCase().trim();
-
-  if (modo === 'publico' || modo === 'público' || modo === 'public') {
-    return 'publico';
-  }
-
-  if (
-    modo === 'solicitud' ||
-    modo === 'request' ||
-    modo === 'invitacion' ||
-    modo === 'invitación' ||
-    modo === 'invite'
-  ) {
-    return 'solicitud';
-  }
-
-  if (modo === 'privado' || modo === 'private') {
-    return 'privado';
-  }
+/**
+ * =========================================================
+ * 🔐 NORMALIZAR PERMISOS
+ * =========================================================
+ *
+ * Valores actuales:
+ *
+ * owner_admin
+ * todos_miembros
+ *
+ * Se mantiene compatibilidad con valores anteriores.
+ */
+function normalizarPermisoDesdeDB(
+  raw: unknown
+): PermisoProyecto {
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
   if (
-    visibilidad === 'publico' ||
-    visibilidad === 'público' ||
-    visibilidad === 'public'
+    [
+      'todos_miembros',
+      'all_members',
+      'todos los miembros',
+      'todos_los_miembros',
+      'todos',
+      'members',
+      'miembros',
+      'miembros_todos',
+    ].includes(value)
   ) {
-    return 'publico';
+    return 'todos_miembros';
   }
 
-  return 'privado';
+  /**
+   * Valores antiguos como "owner"
+   * pasan a owner_admin.
+   */
+  return 'owner_admin';
 }
 
+/**
+ * =========================================================
+ * 🛡️ VALIDAR PERMISO PARA GESTIONAR TAREAS
+ * =========================================================
+ */
 function puedeGestionarSegunPermiso(
   permiso: PermisoProyecto,
   rol: RolProyecto
 ): boolean {
-  if (rol === 'ninguno') return false;
-
-  if (permiso === 'owner') {
-    return rol === 'owner';
+  if (rol === 'ninguno') {
+    return false;
   }
 
   if (permiso === 'owner_admin') {
-    return rol === 'owner' || rol === 'admin';
+    return (
+      rol === 'owner' ||
+      rol === 'admin'
+    );
   }
 
-  return rol === 'owner' || rol === 'admin' || rol === 'miembro';
+  return (
+    rol === 'owner' ||
+    rol === 'admin' ||
+    rol === 'miembro'
+  );
 }
 
+/**
+ * =========================================================
+ * 👥 OBTENER ROL EN PROYECTO
+ * =========================================================
+ */
 async function obtenerRolEnProyecto(
   proyectoId: number,
   usuarioId: string
 ): Promise<RolProyecto> {
   const result = await db.execute({
     sql: `
-      SELECT rol_en_proyecto AS rol
+      SELECT
+        rol_en_proyecto AS rol
       FROM proyecto_usuarios
       WHERE proyecto_id = ?
-        AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
+        AND CAST(usuario_id AS TEXT)
+          = CAST(? AS TEXT)
       LIMIT 1
     `,
-    args: [proyectoId, String(usuarioId)],
+    args: [
+      proyectoId,
+      usuarioId,
+    ],
   });
 
-  const rows = castRows<RolRow>(result.rows);
+  const rows =
+    castRows<RolRow>(
+      result.rows
+    );
+
   const row = rows[0];
 
-  if (!row) return 'ninguno';
+  if (!row) {
+    return 'ninguno';
+  }
 
-  return normalizarRolProyecto(row.rol);
+  return normalizarRolProyecto(
+    row.rol
+  );
 }
 
-function toProjectId(value: string): number | null {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
+/**
+ * =========================================================
+ * 🚩 NORMALIZAR PRIORIDAD
+ * =========================================================
+ */
+function parsePrioridad(
+  raw: unknown
+): TareaPrioridad {
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
-function parsePrioridad(raw: unknown): TareaPrioridad {
-  const value = String(raw ?? '').toLowerCase().trim();
+  if (value === 'baja') {
+    return 'baja';
+  }
 
-  if (value === 'baja') return 'baja';
-  if (value === 'alta') return 'alta';
-  if (value === 'critica' || value === 'crítica') return 'critica';
+  if (value === 'alta') {
+    return 'alta';
+  }
+
+  if (
+    value === 'critica' ||
+    value === 'crítica'
+  ) {
+    return 'critica';
+  }
+
   return 'media';
 }
 
-function parseEstado(raw: unknown): TareaEstado {
-  const value = String(raw ?? '').toLowerCase().trim();
+/**
+ * =========================================================
+ * 📋 NORMALIZAR ESTADO
+ * =========================================================
+ */
+function parseEstado(
+  raw: unknown
+): TareaEstado {
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
   if (
     value === 'in-progress' ||
@@ -189,157 +312,312 @@ function parseEstado(raw: unknown): TareaEstado {
   return 'todo';
 }
 
-function mapTarea(row: TareaRow) {
+/**
+ * =========================================================
+ * 📦 MAPEAR TAREA
+ * =========================================================
+ */
+function mapTarea(
+  row: TareaRow
+) {
   return {
-    id: String(row.id),
-    usuario_id: row.usuario_id != null ? String(row.usuario_id) : null,
-    titulo: row.titulo ?? '',
-    descripcion: row.descripcion ?? null,
-    prioridad: parsePrioridad(row.prioridad),
-    estado: parseEstado(row.estado),
-    creado_en: row.creado_en ?? null,
-    actualizado_en: row.actualizado_en ?? null,
-    proyecto_id: toNumber(row.proyecto_id),
-    creador_id: row.creador_id ?? null,
-    tiempo_estimado_minutos: toNumber(row.tiempo_estimado_minutos),
-    max_participantes: toNumber(row.max_participantes) ?? 1,
-    permiso_edicion: row.permiso_edicion ?? null,
+    id:
+      String(row.id),
+
+    usuario_id:
+      row.usuario_id != null
+        ? String(row.usuario_id)
+        : null,
+
+    titulo:
+      row.titulo ?? '',
+
+    descripcion:
+      row.descripcion ?? null,
+
+    prioridad:
+      parsePrioridad(
+        row.prioridad
+      ),
+
+    estado:
+      parseEstado(
+        row.estado
+      ),
+
+    creado_en:
+      row.creado_en ?? null,
+
+    actualizado_en:
+      row.actualizado_en ?? null,
+
+    proyecto_id:
+      toNumber(
+        row.proyecto_id
+      ),
+
+    creador_id:
+      row.creador_id ?? null,
+
+    tiempo_estimado_minutos:
+      toNumber(
+        row.tiempo_estimado_minutos
+      ),
+
+    max_participantes:
+      toNumber(
+        row.max_participantes
+      ) ?? 1,
+
+    permiso_edicion:
+      row.permiso_edicion ?? null,
   };
 }
 
-/* ========================= GET ========================= */
+/**
+ * =========================================================
+ * 📁 OBTENER PROYECTO
+ * =========================================================
+ */
+async function obtenerProyecto(
+  proyectoId: number
+): Promise<ProyectoRow | null> {
+  const result = await db.execute({
+    sql: `
+      SELECT
+        id,
+        creador_id,
+        permiso_gestionar_tareas
+      FROM proyectos
+      WHERE id = ?
+      LIMIT 1
+    `,
+    args: [proyectoId],
+  });
 
+  const rows =
+    castRows<ProyectoRow>(
+      result.rows
+    );
+
+  return rows[0] ?? null;
+}
+
+/**
+ * =========================================================
+ * 👤 RESOLVER ROL DEL USUARIO
+ * =========================================================
+ */
+async function resolverRolProyecto(
+  proyecto: ProyectoRow,
+  proyectoId: number,
+  userId: string
+): Promise<RolProyecto> {
+  /**
+   * El creador siempre es owner.
+   */
+  if (
+    String(proyecto.creador_id ?? '') ===
+    String(userId)
+  ) {
+    return 'owner';
+  }
+
+  return obtenerRolEnProyecto(
+    proyectoId,
+    userId
+  );
+}
+
+/**
+ * =========================================================
+ * GET /api/proyectos/[id]/tareas
+ * =========================================================
+ *
+ * Lista las tareas del proyecto.
+ *
+ * IMPORTANTE:
+ *
+ * Las tareas son información interna.
+ *
+ * Solo pueden verlas:
+ * - owner
+ * - admin
+ * - miembro
+ *
+ * modo_acceso y visibilidad NO dan acceso a las tareas.
+ */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+    params,
+  }: {
+    params: Promise<{ id: string }>;
+  }
 ) {
   try {
-    const sessionUser = await getAuthenticatedUser(req);
+    /**
+     * =====================================================
+     * 🔐 VALIDAR USUARIO
+     * =====================================================
+     */
+    const sessionUser =
+      await getAuthenticatedUser(req);
 
     if (!sessionUser) {
       return NextResponse.json(
-        { ok: false, error: 'No autenticado' },
+        {
+          ok: false,
+          error: 'No autenticado',
+        },
         { status: 401 }
       );
     }
 
-    const userId = String(sessionUser.id);
+    const userId =
+      String(sessionUser.id);
+
+    /**
+     * =====================================================
+     * 📁 VALIDAR PROYECTO
+     * =====================================================
+     */
     const { id } = await params;
-    const proyectoId = toProjectId(id);
+
+    const proyectoId =
+      toProjectId(id);
 
     if (proyectoId == null) {
-      return NextResponse.json(
-        { ok: false, error: 'ID de proyecto inválido' },
-        { status: 400 }
-      );
-    }
-
-    const proyectoRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          creador_id,
-          modo_acceso,
-          visibilidad,
-          permiso_gestionar_tareas
-        FROM proyectos
-        WHERE id = ?
-        LIMIT 1
-      `,
-      args: [proyectoId],
-    });
-
-    const proyectoRows = castRows<ProyectoRow>(proyectoRes.rows);
-    const proyecto = proyectoRows[0];
-
-    if (!proyecto) {
-      return NextResponse.json(
-        { ok: false, error: 'Proyecto no existe' },
-        { status: 404 }
-      );
-    }
-
-    const isCreator = String(proyecto.creador_id) === userId;
-
-    const memberRes = await db.execute({
-      sql: `
-        SELECT 1
-        FROM proyecto_usuarios
-        WHERE proyecto_id = ?
-          AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-        LIMIT 1
-      `,
-      args: [proyectoId, userId],
-    });
-
-    const isMember = memberRes.rows.length > 0;
-
-    const modoAcceso = normalizarModoAcceso(
-      proyecto.modo_acceso,
-      proyecto.visibilidad
-    );
-
-    let canViewTasks = false;
-    let canRequestAccess = false;
-
-    if (modoAcceso === 'publico') {
-      canViewTasks = true;
-    } else if (modoAcceso === 'solicitud') {
-      canViewTasks = isCreator || isMember;
-      canRequestAccess = !canViewTasks;
-    } else {
-      canViewTasks = isCreator || isMember;
-    }
-
-    if (!canViewTasks) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            modoAcceso === 'solicitud'
-              ? 'Requiere aprobación'
-              : 'Sin acceso a este proyecto',
-          canRequestAccess,
+            'ID de proyecto inválido',
+        },
+        { status: 400 }
+      );
+    }
+
+    const proyecto =
+      await obtenerProyecto(
+        proyectoId
+      );
+
+    if (!proyecto) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Proyecto no existe',
+        },
+        { status: 404 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 👤 OBTENER ROL
+     * =====================================================
+     */
+    const rolProyecto =
+      await resolverRolProyecto(
+        proyecto,
+        proyectoId,
+        userId
+      );
+
+    /**
+     * Un usuario externo nunca puede visualizar
+     * las tareas internas.
+     */
+    if (
+      rolProyecto === 'ninguno'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'No tienes acceso a las tareas de este proyecto',
         },
         { status: 403 }
       );
     }
 
-    const tareasRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          usuario_id,
-          titulo,
-          descripcion,
-          prioridad,
-          estado,
-          creado_en,
-          actualizado_en,
-          proyecto_id,
-          creador_id,
-          tiempo_estimado_minutos,
-          max_participantes,
-          permiso_edicion
-        FROM tareas
-        WHERE proyecto_id = ?
-        ORDER BY creado_en DESC
-      `,
-      args: [proyectoId],
-    });
+    /**
+     * =====================================================
+     * 📋 OBTENER TAREAS
+     * =====================================================
+     */
+    const tareasRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            usuario_id,
+            titulo,
+            descripcion,
+            prioridad,
+            estado,
+            creado_en,
+            actualizado_en,
+            proyecto_id,
+            creador_id,
+            tiempo_estimado_minutos,
+            max_participantes,
+            permiso_edicion
+          FROM tareas
+          WHERE proyecto_id = ?
+          ORDER BY creado_en DESC
+        `,
+        args: [proyectoId],
+      });
 
-    const tareasRows = castRows<TareaRow>(tareasRes.rows);
-    const tareas = tareasRows.map(mapTarea);
+    const tareasRows =
+      castRows<TareaRow>(
+        tareasRes.rows
+      );
+
+    const tareas =
+      tareasRows.map(
+        mapTarea
+      );
+
+    /**
+     * =====================================================
+     * 🔐 PERMISO DE GESTIÓN
+     * =====================================================
+     */
+    const permisoProyecto =
+      normalizarPermisoDesdeDB(
+        proyecto.permiso_gestionar_tareas
+      );
+
+    const puedeGestionarTareas =
+      puedeGestionarSegunPermiso(
+        permisoProyecto,
+        rolProyecto
+      );
 
     const payload = {
-      tareas,
-      meta: {
-        modo_acceso: modoAcceso,
-        es_creador: isCreator,
-        es_miembro: isMember,
-        puede_ver_tareas: true,
-      },
-    };
+  tareas,
+
+  meta: {
+    rol_proyecto: rolProyecto,
+
+    es_creador:
+      rolProyecto === 'owner',
+
+    es_miembro: true,
+
+    puede_ver_tareas: true,
+
+    puede_gestionar_tareas:
+      puedeGestionarTareas,
+
+    permiso_gestionar_tareas:
+      permisoProyecto,
+  },
+};
 
     return NextResponse.json(
       {
@@ -350,153 +628,273 @@ export async function GET(
       { status: 200 }
     );
   } catch (error) {
-    console.error('GET /api/proyectos/[id]/tareas error:', error);
+    console.error(
+      'GET /api/proyectos/[id]/tareas error:',
+      error
+    );
 
     return NextResponse.json(
-      { ok: false, error: 'Error interno del servidor' },
+      {
+        ok: false,
+        error:
+          'Error interno del servidor',
+      },
       { status: 500 }
     );
   }
 }
 
-/* ========================= POST ========================= */
-
+/**
+ * =========================================================
+ * POST /api/proyectos/[id]/tareas
+ * =========================================================
+ *
+ * Crea una nueva tarea.
+ *
+ * La capacidad de crear depende de:
+ *
+ * permiso_gestionar_tareas
+ *
+ * owner_admin:
+ * - owner
+ * - admin
+ *
+ * todos_miembros:
+ * - owner
+ * - admin
+ * - miembro
+ */
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+    params,
+  }: {
+    params: Promise<{ id: string }>;
+  }
 ) {
   try {
-    const sessionUser = await getAuthenticatedUser(req);
+    /**
+     * =====================================================
+     * 🔐 VALIDAR USUARIO
+     * =====================================================
+     */
+    const sessionUser =
+      await getAuthenticatedUser(req);
 
     if (!sessionUser) {
       return NextResponse.json(
-        { ok: false, error: 'No autenticado' },
+        {
+          ok: false,
+          error: 'No autenticado',
+        },
         { status: 401 }
       );
     }
 
-    const userId = String(sessionUser.id);
+    const userId =
+      String(sessionUser.id);
+
+    /**
+     * =====================================================
+     * 📁 VALIDAR PROYECTO
+     * =====================================================
+     */
     const { id } = await params;
-    const proyectoId = toProjectId(id);
+
+    const proyectoId =
+      toProjectId(id);
 
     if (proyectoId == null) {
       return NextResponse.json(
-        { ok: false, error: 'ID de proyecto inválido' },
+        {
+          ok: false,
+          error:
+            'ID de proyecto inválido',
+        },
         { status: 400 }
       );
     }
 
-    const proyectoRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          creador_id,
-          permiso_gestionar_tareas,
-          modo_acceso,
-          visibilidad
-        FROM proyectos
-        WHERE id = ?
-        LIMIT 1
-      `,
-      args: [proyectoId],
-    });
-
-    const proyectoRows = castRows<ProyectoRow>(proyectoRes.rows);
-    const proyecto = proyectoRows[0];
+    const proyecto =
+      await obtenerProyecto(
+        proyectoId
+      );
 
     if (!proyecto) {
       return NextResponse.json(
-        { ok: false, error: 'Proyecto no existe' },
+        {
+          ok: false,
+          error:
+            'Proyecto no existe',
+        },
         { status: 404 }
       );
     }
 
-    const esOwnerProyecto = String(proyecto.creador_id) === userId;
+    /**
+     * =====================================================
+     * 👤 RESOLVER ROL
+     * =====================================================
+     */
+    const rolProyecto =
+      await resolverRolProyecto(
+        proyecto,
+        proyectoId,
+        userId
+      );
 
-    const rolProyecto: RolProyecto = esOwnerProyecto
-      ? 'owner'
-      : await obtenerRolEnProyecto(proyectoId, userId);
-
-    const modoAcceso = normalizarModoAcceso(
-      proyecto.modo_acceso,
-      proyecto.visibilidad
-    );
-
-    const puedeAcceder =
-      modoAcceso === 'publico' ||
-      esOwnerProyecto ||
-      rolProyecto === 'admin' ||
-      rolProyecto === 'miembro';
-
-    if (!puedeAcceder) {
+    /**
+     * Externos no pueden crear tareas.
+     */
+    if (
+      rolProyecto === 'ninguno'
+    ) {
       return NextResponse.json(
-        { ok: false, error: 'Sin acceso a este proyecto' },
+        {
+          ok: false,
+          error:
+            'Sin acceso a este proyecto',
+        },
         { status: 403 }
       );
     }
 
-    const permisoProyecto = normalizarPermisoDesdeDB(
-      proyecto.permiso_gestionar_tareas
-    );
+    /**
+     * =====================================================
+     * 🔐 VALIDAR PERMISO
+     * =====================================================
+     */
+    const permisoProyecto =
+      normalizarPermisoDesdeDB(
+        proyecto.permiso_gestionar_tareas
+      );
 
-    const puedeCrear = puedeGestionarSegunPermiso(permisoProyecto, rolProyecto);
+    const puedeCrear =
+      puedeGestionarSegunPermiso(
+        permisoProyecto,
+        rolProyecto
+      );
 
     if (!puedeCrear) {
       return NextResponse.json(
-        { ok: false, error: 'Sin permiso para crear tareas' },
+        {
+          ok: false,
+          error:
+            'Sin permiso para crear tareas',
+        },
         { status: 403 }
       );
     }
 
-    const body = await req.json().catch(() => ({}));
+    /**
+     * =====================================================
+     * 📝 DATOS DE LA TAREA
+     * =====================================================
+     */
+    const body = await req
+      .json()
+      .catch(() => ({}));
 
-    const titulo = typeof body?.titulo === 'string' ? body.titulo.trim() : '';
+    const titulo =
+      typeof body?.titulo === 'string'
+        ? body.titulo.trim()
+        : '';
+
     const descripcion =
-      typeof body?.descripcion === 'string' && body.descripcion.trim()
+      typeof body?.descripcion === 'string' &&
+      body.descripcion.trim()
         ? body.descripcion.trim()
         : null;
 
-    const prioridad = parsePrioridad(body?.prioridad);
-    const estado: TareaEstado = 'todo';
+    const prioridad =
+      parsePrioridad(
+        body?.prioridad
+      );
+
+    /**
+     * Toda tarea nueva inicia en todo.
+     */
+    const estado: TareaEstado =
+      'todo';
 
     const tiempoEstimadoMinutos =
       body?.tiempo_estimado_minutos == null
         ? null
-        : Number(body.tiempo_estimado_minutos);
+        : Number(
+            body.tiempo_estimado_minutos
+          );
 
     const maxParticipantes =
-      body?.max_participantes == null ? 1 : Number(body.max_participantes);
+      body?.max_participantes == null
+        ? 1
+        : Number(
+            body.max_participantes
+          );
 
+    /**
+     * =====================================================
+     * ✅ VALIDACIONES
+     * =====================================================
+     */
     if (!titulo) {
       return NextResponse.json(
-        { ok: false, error: 'El título es obligatorio' },
+        {
+          ok: false,
+          error:
+            'El título es obligatorio',
+        },
         { status: 400 }
       );
     }
 
     if (
       tiempoEstimadoMinutos != null &&
-      (!Number.isFinite(tiempoEstimadoMinutos) || tiempoEstimadoMinutos < 0)
+      (
+        !Number.isFinite(
+          tiempoEstimadoMinutos
+        ) ||
+        tiempoEstimadoMinutos < 0
+      )
     ) {
       return NextResponse.json(
-        { ok: false, error: 'tiempo_estimado_minutos inválido' },
+        {
+          ok: false,
+          error:
+            'tiempo_estimado_minutos inválido',
+        },
         { status: 400 }
       );
     }
 
     if (
-      !Number.isFinite(maxParticipantes) ||
-      !Number.isInteger(maxParticipantes) ||
+      !Number.isFinite(
+        maxParticipantes
+      ) ||
+      !Number.isInteger(
+        maxParticipantes
+      ) ||
       maxParticipantes < 1
     ) {
       return NextResponse.json(
-        { ok: false, error: 'max_participantes inválido' },
+        {
+          ok: false,
+          error:
+            'max_participantes inválido',
+        },
         { status: 400 }
       );
     }
 
-    const tareaId = randomUUID();
-    const now = new Date().toISOString();
+    /**
+     * =====================================================
+     * ➕ CREAR TAREA
+     * =====================================================
+     */
+    const tareaId =
+      randomUUID();
+
+    const now =
+      new Date().toISOString();
 
     await db.execute({
       sql: `
@@ -514,7 +912,20 @@ export async function POST(
           tiempo_estimado_minutos,
           max_participantes
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?
+        )
       `,
       args: [
         tareaId,
@@ -532,6 +943,14 @@ export async function POST(
       ],
     });
 
+    /**
+     * =====================================================
+     * 📜 HISTORIAL
+     * =====================================================
+     *
+     * El historial no debe impedir la creación
+     * de la tarea si falla.
+     */
     try {
       await db.execute({
         sql: `
@@ -544,54 +963,120 @@ export async function POST(
             comentario,
             creado_en
           )
-          VALUES (?, ?, ?, NULL, ?, 'Tarea creada', ?)
+          VALUES (
+            ?,
+            ?,
+            ?,
+            NULL,
+            ?,
+            ?,
+            ?
+          )
         `,
-        args: [randomUUID(), tareaId, userId, estado, now],
+        args: [
+          randomUUID(),
+          tareaId,
+          userId,
+          estado,
+          'Tarea creada',
+          now,
+        ],
       });
     } catch (error) {
-      console.warn('No se pudo insertar en tarea_historial:', error);
+      console.warn(
+        'No se pudo insertar en tarea_historial:',
+        error
+      );
     }
 
-    const tareaRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          usuario_id,
-          titulo,
-          descripcion,
-          prioridad,
-          estado,
-          creado_en,
-          actualizado_en,
-          proyecto_id,
-          creador_id,
-          tiempo_estimado_minutos,
-          max_participantes,
-          permiso_edicion
-        FROM tareas
-        WHERE id = ?
-        LIMIT 1
-      `,
-      args: [tareaId],
-    });
+    /**
+     * =====================================================
+     * 🔎 RECARGAR TAREA
+     * =====================================================
+     */
+    const tareaRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            usuario_id,
+            titulo,
+            descripcion,
+            prioridad,
+            estado,
+            creado_en,
+            actualizado_en,
+            proyecto_id,
+            creador_id,
+            tiempo_estimado_minutos,
+            max_participantes,
+            permiso_edicion
+          FROM tareas
+          WHERE id = ?
+            AND proyecto_id = ?
+          LIMIT 1
+        `,
+        args: [
+          tareaId,
+          proyectoId,
+        ],
+      });
 
-    const tareaRows = castRows<TareaRow>(tareaRes.rows);
-    const tarea = tareaRows[0] ? mapTarea(tareaRows[0]) : null;
+    const tareaRows =
+      castRows<TareaRow>(
+        tareaRes.rows
+      );
 
+    const tarea =
+      tareaRows[0]
+        ? mapTarea(
+            tareaRows[0]
+          )
+        : null;
+
+    if (!tarea) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'La tarea fue creada, pero no pudo recargarse',
+        },
+        { status: 500 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * ✅ RESPUESTA FINAL
+     * =====================================================
+     */
     return NextResponse.json(
       {
         ok: true,
-        message: 'Tarea creada correctamente',
-        data: { tarea },
+
+        message:
+          'Tarea creada correctamente',
+
+        data: {
+          tarea,
+        },
+
         tarea,
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error('POST /api/proyectos/[id]/tareas error:', error);
+    console.error(
+      'POST /api/proyectos/[id]/tareas error:',
+      error
+    );
 
     return NextResponse.json(
-      { ok: false, error: 'Error interno del servidor' },
+      {
+        ok: false,
+        error:
+          'Error interno del servidor',
+      },
       { status: 500 }
     );
   }

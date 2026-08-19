@@ -1,4 +1,4 @@
-//app/register/page.tsx
+// app/register/page.tsx
 'use client';
 
 import { useState, FormEvent } from 'react';
@@ -9,7 +9,8 @@ import { countries } from '@/lib/countries';
 
 const isValidPassword = (password: string) => {
   const regex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=\[\]{};':"\\|,.<>/?]).{8,}$/;
+
   return regex.test(password);
 };
 
@@ -56,18 +57,40 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    if (loading) {
+      return;
+    }
+
     setError('');
-    setLoading(true);
+
+    const nombre = formData.nombre.trim();
+    const apellido = formData.apellido.trim();
+    const email = formData.email.trim().toLowerCase();
+    const telefono = formData.telefono.trim();
+
+    if (!nombre) {
+      setError('El nombre es obligatorio.');
+      return;
+    }
+
+    if (!apellido) {
+      setError('El apellido es obligatorio.');
+      return;
+    }
+
+    if (!email) {
+      setError('El correo electrónico es obligatorio.');
+      return;
+    }
 
     if (!formData.paisIso) {
       setError('Debes seleccionar tu país de residencia.');
-      setLoading(false);
       return;
     }
 
     if (!selectedpais) {
       setError('El país de residencia no es válido.');
-      setLoading(false);
       return;
     }
 
@@ -75,14 +98,12 @@ export default function RegisterPage() {
       setError(
         'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un símbolo.'
       );
-      setLoading(false);
       return;
     }
 
-    if (formData.telefono.trim() !== '') {
-      if (formData.telefono.length < 7) {
+    if (telefono !== '') {
+      if (telefono.length < 7) {
         setError('El número de teléfono parece incompleto.');
-        setLoading(false);
         return;
       }
 
@@ -90,21 +111,22 @@ export default function RegisterPage() {
         setError(
           'Si ingresas un número de teléfono, debes seleccionar el código de país.'
         );
-        setLoading(false);
         return;
       }
 
       if (!selectedPhonepais) {
         setError('Código de país para teléfono no es válido.');
-        setLoading(false);
         return;
       }
     }
 
     let phoneFull: string | null = null;
-    if (formData.telefono.trim() !== '' && selectedPhonepais) {
-      phoneFull = `${selectedPhonepais.code}${formData.telefono}`;
+
+    if (telefono !== '' && selectedPhonepais) {
+      phoneFull = `${selectedPhonepais.code}${telefono}`;
     }
+
+    setLoading(true);
 
     try {
       const response = await fetch('/api/auth/register', {
@@ -112,29 +134,38 @@ export default function RegisterPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        cache: 'no-store',
         body: JSON.stringify({
-          nombre: formData.nombre,
-          apellido: formData.apellido,
-          email: formData.email,
+          nombre,
+          apellido,
+          email,
           password: formData.password,
           pais: formData.paisIso,
           telefono_completo: phoneFull,
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (!response.ok || !data.ok) {
-        setError(data.error || 'Error al registrar usuario');
+      if (!response.ok || data?.ok !== true) {
+        setError(
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Error al registrar usuario'
+        );
+
         return;
       }
 
       setSuccessMessage(
-        data.message ||
-          'Cuenta registrada exitosamente. Activación pendiente por un administrador.'
+        typeof data?.message === 'string'
+          ? data.message
+          : 'Cuenta registrada exitosamente. Activación pendiente por un administrador.'
       );
+
       setShowSuccessModal(true);
-    } catch {
+    } catch (error) {
+      console.error('Error registrando usuario:', error);
       setError('Error de conexión. Intenta de nuevo.');
     } finally {
       setLoading(false);
@@ -169,9 +200,11 @@ export default function RegisterPage() {
                 />
               </svg>
             </div>
+
             <h1 className="text-3xl font-bold text-white mb-1 tracking-tight">
               Crear Cuenta
             </h1>
+
             <p className="text-purple-200 text-sm">
               Únete a nuestra comunidad hoy
             </p>
@@ -193,6 +226,7 @@ export default function RegisterPage() {
                         clipRule="evenodd"
                       />
                     </svg>
+
                     <span className="text-xs text-red-200">{error}</span>
                   </div>
                 </div>
@@ -207,6 +241,7 @@ export default function RegisterPage() {
                     >
                       Nombre
                     </label>
+
                     <input
                       id="nombre"
                       name="nombre"
@@ -233,6 +268,7 @@ export default function RegisterPage() {
                     >
                       Correo Electrónico
                     </label>
+
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <svg
@@ -249,6 +285,7 @@ export default function RegisterPage() {
                           />
                         </svg>
                       </div>
+
                       <input
                         id="email"
                         name="email"
@@ -277,10 +314,14 @@ export default function RegisterPage() {
                     >
                       País de Residencia
                     </label>
+
                     <CountrySelect
                       value={formData.paisIso}
                       onChange={(iso) =>
-                        setFormData({ ...formData, paisIso: iso })
+                        setFormData({
+                          ...formData,
+                          paisIso: iso,
+                        })
                       }
                       disabled={loading}
                       placeholder="¿Dónde vives?"
@@ -294,6 +335,7 @@ export default function RegisterPage() {
                     >
                       Contraseña
                     </label>
+
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <svg
@@ -310,6 +352,7 @@ export default function RegisterPage() {
                           />
                         </svg>
                       </div>
+
                       <input
                         id="password"
                         name="password"
@@ -328,6 +371,7 @@ export default function RegisterPage() {
                         }`}
                         placeholder="••••••••"
                       />
+
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
@@ -370,6 +414,7 @@ export default function RegisterPage() {
                         )}
                       </button>
                     </div>
+
                     <p className="text-xs text-purple-300/70 mt-1">
                       Min. 8 caracteres, mayúscula, minúscula, número y símbolo
                     </p>
@@ -384,6 +429,7 @@ export default function RegisterPage() {
                     >
                       Apellido
                     </label>
+
                     <input
                       id="apellido"
                       name="apellido"
@@ -410,6 +456,7 @@ export default function RegisterPage() {
                     >
                       Número de Teléfono (opcional)
                     </label>
+
                     <div className="flex gap-2">
                       <CountryComboBox
                         value={formData.phonepaisIso}
@@ -421,6 +468,7 @@ export default function RegisterPage() {
                         }
                         disabled={loading}
                       />
+
                       <div className="relative flex-1">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                           <svg
@@ -437,6 +485,7 @@ export default function RegisterPage() {
                             />
                           </svg>
                         </div>
+
                         <input
                           id="telefono"
                           name="telefono"
@@ -444,6 +493,7 @@ export default function RegisterPage() {
                           value={formData.telefono}
                           onChange={(e) => {
                             const value = e.target.value.replace(/\D/g, '');
+
                             setFormData({
                               ...formData,
                               telefono: value,
@@ -461,6 +511,7 @@ export default function RegisterPage() {
                         />
                       </div>
                     </div>
+
                     {selectedPhonepais && formData.telefono && (
                       <p className="text-xs text-purple-300/70 mt-1">
                         {selectedPhonepais.code} {formData.telefono}
@@ -493,12 +544,14 @@ export default function RegisterPage() {
                         stroke="currentColor"
                         strokeWidth="4"
                       ></circle>
+
                       <path
                         className="opacity-75"
                         fill="currentColor"
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
+
                     Registrando...
                   </span>
                 ) : (
@@ -510,6 +563,7 @@ export default function RegisterPage() {
                 <span className="text-sm text-purple-200">
                   ¿Ya tienes cuenta?{' '}
                 </span>
+
                 <a
                   href="/login"
                   className="text-sm text-purple-300 hover:text-purple-200 font-medium transition-colors"

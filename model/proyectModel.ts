@@ -1,56 +1,131 @@
+// horaslaborales/model/proyectModel.ts
+
 import { db } from '@/lib/database';
 import { randomUUID } from 'crypto';
 
-export type PrioridadProyecto = 'baja' | 'media' | 'alta' | 'critica';
+/**
+ * =========================================================
+ * 📌 TIPOS DEL PROYECTO
+ * =========================================================
+ */
 
-// 🔹 Permisos de proyecto
-export type PermisoEditarProyecto = 'owner_admin' | 'todos_miembros';
-export type PermisoGestionarTareas = 'owner_admin' | 'todos_miembros';
+export type PrioridadProyecto =
+  | 'baja'
+  | 'media'
+  | 'alta'
+  | 'critica';
 
+/**
+ * Visibilidad:
+ *
+ * privado → solo creador y miembros pueden verlo.
+ * publico → otros usuarios pueden encontrarlo.
+ */
+export type VisibilidadProyecto =
+  | 'privado'
+  | 'publico';
+
+/**
+ * Modo de acceso:
+ *
+ * privado   → no permite unión libre.
+ * publico   → permite unión directa.
+ * solicitud → requiere aprobación.
+ */
+export type ModoAccesoProyecto =
+  | 'privado'
+  | 'publico'
+  | 'solicitud';
+
+/**
+ * Permisos para editar el proyecto.
+ */
+export type PermisoEditarProyecto =
+  | 'owner_admin'
+  | 'todos_miembros';
+
+/**
+ * Permisos para gestionar tareas.
+ */
+export type PermisoGestionarTareas =
+  | 'owner_admin'
+  | 'todos_miembros';
+
+/**
+ * =========================================================
+ * 📁 INTERFAZ PROYECTO
+ * =========================================================
+ */
 export interface Proyecto {
   id: number;
+
   nombre: string;
   descripcion: string | null;
-  creador_id: number | string;
+
+  /**
+   * Los IDs de usuarios son TEXT en la base de datos.
+   */
+  creador_id: string;
+
   estado: string;
   codigo_union: string;
+
   creado_en: string;
   actualizado_en: string;
-  modo_acceso: string;
+
+  modo_acceso: ModoAccesoProyecto;
   prioridad: PrioridadProyecto;
-  visibilidad: string;
+  visibilidad: VisibilidadProyecto;
+
   fecha_inicio: string | null;
   fecha_fin: string | null;
+
   configuracion: string | null;
   ultima_actividad: string | null;
 
-  // 🔹 Nuevos campos de permisos
   permiso_editar_proyecto: PermisoEditarProyecto;
   permiso_gestionar_tareas: PermisoGestionarTareas;
 
-  is_creator?: number; // 1 o 0
-  is_member?: number;  // 1 o 0
+  /**
+   * Campos calculados.
+   *
+   * 1 = sí
+   * 0 = no
+   */
+  is_creator?: number;
+  is_member?: number;
 }
 
+/**
+ * =========================================================
+ * 📝 DATOS PARA CREAR PROYECTO
+ * =========================================================
+ */
 type CreateProyectoInput = {
   nombre: string;
   descripcion?: string;
+
   creadorId: string;
+
   prioridad?: PrioridadProyecto;
-  modoAcceso?: string;
-  visibilidad?: string;
+  modoAcceso?: ModoAccesoProyecto;
+  visibilidad?: VisibilidadProyecto;
+
   fecha_inicio?: string | null;
   fecha_fin?: string | null;
 
-  // 🔹 Permisos opcionales al crear
   permisoEditarProyecto?: PermisoEditarProyecto;
   permisoGestionarTareas?: PermisoGestionarTareas;
 };
 
-// ===========================================================
-// 🔹 GET — Obtener proyectos del usuario (solo creador)
-// ===========================================================
-export async function getProyectosByCreadorId(creadorId: string): Promise<Proyecto[]> {
+/**
+ * =========================================================
+ * 📂 GET — PROYECTOS CREADOS POR USUARIO
+ * =========================================================
+ */
+export async function getProyectosByCreadorId(
+  creadorId: string
+): Promise<Proyecto[]> {
   const result = await db.execute({
     sql: `
       SELECT
@@ -71,27 +146,46 @@ export async function getProyectosByCreadorId(creadorId: string): Promise<Proyec
         ultima_actividad,
         permiso_editar_proyecto,
         permiso_gestionar_tareas,
+
         1 AS is_creator,
-        0 AS is_member
+        1 AS is_member
+
       FROM proyectos
+
       WHERE creador_id = ?
+
       ORDER BY creado_en DESC
     `,
     args: [creadorId],
   });
 
-  return (result.rows ?? []) as any as Proyecto[];
+  return (result.rows ?? []) as unknown as Proyecto[];
 }
 
-// ===========================================================
-// 🔹 POST — Crear proyecto (GUARDA FECHAS Y PERMISOS)
-// ===========================================================
-export async function createProyecto(input: CreateProyectoInput): Promise<Proyecto> {
+/**
+ * =========================================================
+ * ➕ POST — CREAR PROYECTO
+ * =========================================================
+ */
+export async function createProyecto(
+  input: CreateProyectoInput
+): Promise<Proyecto> {
+  /**
+   * Código corto utilizado para identificación/unión.
+   */
   const codigo = randomUUID().slice(0, 8);
 
-  const prioridad = input.prioridad ?? 'media';
-  const modoAcceso = input.modoAcceso ?? 'privado';
-  const visibilidad = input.visibilidad ?? 'privado';
+  /**
+   * Valores predeterminados.
+   */
+  const prioridad =
+    input.prioridad ?? 'media';
+
+  const modoAcceso: ModoAccesoProyecto =
+    input.modoAcceso ?? 'privado';
+
+  const visibilidad: VisibilidadProyecto =
+    input.visibilidad ?? 'privado';
 
   const permisoEditar: PermisoEditarProyecto =
     input.permisoEditarProyecto ?? 'owner_admin';
@@ -115,7 +209,21 @@ export async function createProyecto(input: CreateProyectoInput): Promise<Proyec
         permiso_editar_proyecto,
         permiso_gestionar_tareas
       )
-      VALUES (?, ?, ?, 'activo', ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (
+        ?,
+        ?,
+        ?,
+        'activo',
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?
+      )
+
       RETURNING
         id,
         nombre,
@@ -150,25 +258,43 @@ export async function createProyecto(input: CreateProyectoInput): Promise<Proyec
     ],
   });
 
-  const rows = (result.rows ?? []) as any[];
+  const rows = (result.rows ?? []) as unknown as Proyecto[];
 
   if (rows.length === 0) {
     throw new Error('No se pudo crear el proyecto');
   }
 
-  const proyecto = rows[0] as Proyecto;
+  const proyecto = rows[0];
+
+  /**
+   * El creador es owner y también se registra
+   * en proyecto_usuarios.
+   */
   proyecto.is_creator = 1;
-  proyecto.is_member = 0;
+  proyecto.is_member = 1;
 
   return proyecto;
 }
 
-// ===========================================================
-// 🔹 GET — Proyectos visibles para el usuario
-//     - públicos y solicitud: visibles para todos los logueados
-//     - privados: solo creador o miembros (proyecto_usuarios)
-// ===========================================================
-export async function getProyectosVisiblesParaUsuario(userId: string): Promise<Proyecto[]> {
+/**
+ * =========================================================
+ * 👁️ GET — PROYECTOS VISIBLES PARA EL USUARIO
+ * =========================================================
+ *
+ * Un usuario puede ver:
+ *
+ * - Proyectos públicos.
+ * - Proyectos creados por él.
+ * - Proyectos donde ya es miembro.
+ *
+ * IMPORTANTE:
+ *
+ * "solicitud" pertenece a modo_acceso,
+ * NO a visibilidad.
+ */
+export async function getProyectosVisiblesParaUsuario(
+  userId: string
+): Promise<Proyecto[]> {
   const result = await db.execute({
     sql: `
       SELECT DISTINCT
@@ -190,69 +316,115 @@ export async function getProyectosVisiblesParaUsuario(userId: string): Promise<P
         p.permiso_editar_proyecto,
         p.permiso_gestionar_tareas,
 
-        CASE WHEN p.creador_id = ? THEN 1 ELSE 0 END AS is_creator,
-        CASE WHEN pu.usuario_id IS NOT NULL THEN 1 ELSE 0 END AS is_member
+        CASE
+          WHEN p.creador_id = ?
+          THEN 1
+          ELSE 0
+        END AS is_creator,
+
+        CASE
+          WHEN pu.usuario_id IS NOT NULL
+          THEN 1
+          ELSE 0
+        END AS is_member
 
       FROM proyectos p
+
       LEFT JOIN proyecto_usuarios pu
         ON pu.proyecto_id = p.id
        AND pu.usuario_id = ?
 
       WHERE
-        p.visibilidad IN ('publico', 'solicitud')
+        LOWER(COALESCE(p.visibilidad, 'privado')) = 'publico'
         OR p.creador_id = ?
         OR pu.usuario_id IS NOT NULL
 
       ORDER BY p.creado_en DESC
     `,
-    args: [userId, userId, userId],
+    args: [
+      userId,
+      userId,
+      userId,
+    ],
   });
 
-  return (result.rows ?? []) as any as Proyecto[];
+  return (result.rows ?? []) as unknown as Proyecto[];
 }
 
-// ===========================================================
-// ✅ Solo proyectos creados por mí
-// ===========================================================
-export async function getProyectosCreadosPorUsuario(userId: string): Promise<Proyecto[]> {
+/**
+ * =========================================================
+ * 👑 GET — PROYECTOS CREADOS POR EL USUARIO
+ * =========================================================
+ */
+export async function getProyectosCreadosPorUsuario(
+  userId: string
+): Promise<Proyecto[]> {
   const result = await db.execute({
     sql: `
       SELECT
         p.*,
+
         1 AS is_creator,
-        CASE WHEN pu.usuario_id IS NOT NULL THEN 1 ELSE 0 END AS is_member
+
+        CASE
+          WHEN pu.usuario_id IS NOT NULL
+          THEN 1
+          ELSE 0
+        END AS is_member
+
       FROM proyectos p
+
       LEFT JOIN proyecto_usuarios pu
         ON pu.proyecto_id = p.id
        AND pu.usuario_id = ?
+
       WHERE p.creador_id = ?
+
       ORDER BY p.creado_en DESC
     `,
-    args: [userId, userId],
+    args: [
+      userId,
+      userId,
+    ],
   });
 
-  return (result.rows ?? []) as any as Proyecto[];
+  return (result.rows ?? []) as unknown as Proyecto[];
 }
 
-// ===========================================================
-// ✅ Proyectos donde soy miembro pero NO creador
-// ===========================================================
-export async function getProyectosDondeSoyMiembro(userId: string): Promise<Proyecto[]> {
+/**
+ * =========================================================
+ * 👥 GET — PROYECTOS DONDE SOY MIEMBRO
+ * =========================================================
+ *
+ * Excluye proyectos donde el usuario sea creador,
+ * evitando duplicados entre "creados" y "miembro".
+ */
+export async function getProyectosDondeSoyMiembro(
+  userId: string
+): Promise<Proyecto[]> {
   const result = await db.execute({
     sql: `
       SELECT
         p.*,
+
         0 AS is_creator,
         1 AS is_member
+
       FROM proyectos p
+
       INNER JOIN proyecto_usuarios pu
         ON pu.proyecto_id = p.id
+
       WHERE pu.usuario_id = ?
         AND p.creador_id <> ?
+
       ORDER BY p.creado_en DESC
     `,
-    args: [userId, userId],
+    args: [
+      userId,
+      userId,
+    ],
   });
 
-  return (result.rows ?? []) as any as Proyecto[];
+  return (result.rows ?? []) as unknown as Proyecto[];
 }

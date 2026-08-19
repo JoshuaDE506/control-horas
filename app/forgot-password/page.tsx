@@ -1,4 +1,4 @@
-//app/forgot-password/page.tsx
+// app/forgot-password/page.tsx
 'use client';
 
 import { useState, FormEvent } from 'react';
@@ -14,38 +14,70 @@ export default function ForgotPasswordPage() {
 
   const handleEmailSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+
+    if (loading) {
+      return;
+    }
+
     setError('');
 
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail) {
       setError('Debes ingresar tu correo electrónico.');
-      setLoading(false);
       return;
     }
+
+    setLoading(true);
 
     try {
       const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalizedEmail }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          email: normalizedEmail,
+        }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (!response.ok || !data.ok) {
-        setError(data.error || 'No se pudo enviar el código');
+      if (!response.ok || data?.ok !== true) {
+        setError(
+          typeof data?.error === 'string'
+            ? data.error
+            : typeof data?.message === 'string'
+            ? data.message
+            : 'No se pudo enviar el código'
+        );
+
         return;
       }
 
-      sessionStorage.setItem('resetEmail', normalizedEmail);
+      /**
+       * Se elimina cualquier recuperación anterior
+       * antes de comenzar una nueva.
+       */
       sessionStorage.removeItem('resetUser');
+
+      /**
+       * verify-code utilizará este correo para validar
+       * el código enviado por el backend.
+       */
+      sessionStorage.setItem(
+        'resetEmail',
+        normalizedEmail
+      );
 
       router.push('/verify-code');
     } catch (err) {
       console.error('Error de red:', err);
-      setError('Error de conexión con el servidor');
+
+      setError(
+        'Error de conexión con el servidor'
+      );
     } finally {
       setLoading(false);
     }

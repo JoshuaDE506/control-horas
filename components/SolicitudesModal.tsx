@@ -42,7 +42,12 @@ const IconCheck = () => (
 
 const IconX = () => (
   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M6 18L18 6M6 6l12 12"
+    />
   </svg>
 );
 
@@ -63,9 +68,14 @@ const IconSpinner = () => (
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return '—';
+
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString();
+
+  if (Number.isNaN(d.getTime())) {
+    return value;
+  }
+
+  return d.toLocaleString('es-CR');
 }
 
 function estadoPill(estado: SolicitudEstado) {
@@ -79,6 +89,7 @@ function estadoPill(estado: SolicitudEstado) {
       </span>
     );
   }
+
   if (estado === 'aprobada') {
     return (
       <span
@@ -89,6 +100,7 @@ function estadoPill(estado: SolicitudEstado) {
       </span>
     );
   }
+
   return (
     <span
       className={`${pillBase} bg-red-500/10 text-red-300 border-red-500/40`}
@@ -130,42 +142,85 @@ export default function SolicitudesModal({
     };
 
     window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
   }, [isOpen, onClose, processingId]);
 
   useEffect(() => {
     if (!isOpen) return;
+
+    let cancelled = false;
 
     const load = async () => {
       try {
         setLoading(true);
         setError('');
 
-        const res = await fetch(`/api/proyectos/${proyectoId}/solicitudes`, {
-          method: 'GET',
-          credentials: 'include',
-          cache: 'no-store',
-        });
+        const res = await fetch(
+          `/api/proyectos/${proyectoId}/solicitudes`,
+          {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+          }
+        );
 
-        const data: any = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
-          throw new Error(data?.error || 'No se pudieron cargar las solicitudes');
+          throw new Error(
+            typeof data?.error === 'string'
+              ? data.error
+              : 'No se pudieron cargar las solicitudes'
+          );
         }
 
-        const list = (data.solicitudes ?? []) as SolicitudApi[];
-        setSolicitudes(list);
-      } catch (err: any) {
-        setError(err.message || 'Error cargando solicitudes');
+        const list = Array.isArray(data?.solicitudes)
+          ? data.solicitudes
+          : Array.isArray(data?.data?.solicitudes)
+          ? data.data.solicitudes
+          : Array.isArray(data?.data)
+          ? data.data
+          : [];
+
+        if (!cancelled) {
+          setSolicitudes(list as SolicitudApi[]);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Error cargando solicitudes'
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    load();
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen, proyectoId]);
 
-  const handleAccion = async (solicitud: SolicitudApi, accion: 'aprobar' | 'rechazar') => {
+  const handleAccion = async (
+    solicitud: SolicitudApi,
+    accion: 'aprobar' | 'rechazar'
+  ) => {
+    if (
+      processingId !== null ||
+      solicitud.estado !== 'pendiente'
+    ) {
+      return;
+    }
+
     try {
       setProcessingId(solicitud.id);
       setError('');
@@ -175,26 +230,52 @@ export default function SolicitudesModal({
         {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accion }),
-        },
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            accion,
+          }),
+        }
       );
 
-      const data: any = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        throw new Error(data?.error || 'No se pudo procesar la solicitud');
+        throw new Error(
+          typeof data?.error === 'string'
+            ? data.error
+            : 'No se pudo procesar la solicitud'
+        );
       }
 
       const nuevoEstado: SolicitudEstado =
-        accion === 'aprobar' ? 'aprobada' : 'rechazada';
+        accion === 'aprobar'
+          ? 'aprobada'
+          : 'rechazada';
 
       setSolicitudes((prev) =>
         prev.map((s) =>
-          s.id === solicitud.id ? { ...s, estado: nuevoEstado } : s,
-        ),
+          s.id === solicitud.id
+            ? {
+                ...s,
+                estado: nuevoEstado,
+                actualizado_en:
+                  typeof data?.solicitud?.actualizado_en === 'string'
+                    ? data.solicitud.actualizado_en
+                    : typeof data?.data?.solicitud?.actualizado_en === 'string'
+                    ? data.data.solicitud.actualizado_en
+                    : s.actualizado_en,
+              }
+            : s
+        )
       );
-    } catch (err: any) {
-      setError(err.message || 'Error procesando la solicitud');
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Error procesando la solicitud'
+      );
     } finally {
       setProcessingId(null);
     }
@@ -202,7 +283,9 @@ export default function SolicitudesModal({
 
   if (!isOpen) return null;
 
-  const thereArePendientes = solicitudes.some((s) => s.estado === 'pendiente');
+  const thereArePendientes = solicitudes.some(
+    (s) => s.estado === 'pendiente'
+  );
 
   return (
     <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
@@ -226,13 +309,16 @@ export default function SolicitudesModal({
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
               <span className="mt-0.5 hidden h-8 w-1.5 rounded-full bg-gradient-to-b from-purple-500 to-blue-500 sm:block" />
+
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <IconUsers />
+
                   <h2 className="text-base font-semibold text-white sm:text-lg">
                     Solicitudes de acceso
                   </h2>
                 </div>
+
                 <p className="mt-1 text-xs leading-relaxed text-gray-500 sm:text-xs">
                   Gestiona las solicitudes de usuarios que quieren unirse a este proyecto.
                 </p>
@@ -263,13 +349,18 @@ export default function SolicitudesModal({
 
           {error && (
             <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
-              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <svg
+                className="w-4 h-4 flex-shrink-0"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
                 <path
                   fillRule="evenodd"
                   d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.59C19.021 16.92 18.245 18 17.014 18H2.986c-1.23 0-2.007-1.08-1.247-2.31l6.518-11.59zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-1-2a1 1 0 01-1-1V8a1 1 0 112 0v3a1 1 0 01-1 1z"
                   clipRule="evenodd"
                 />
               </svg>
+
               <span>{error}</span>
             </div>
           )}
@@ -279,6 +370,7 @@ export default function SolicitudesModal({
           {loading ? (
             <div className="flex flex-col items-center justify-center py-10 text-sm text-gray-400">
               <div className="mb-3 h-8 w-8 animate-spin rounded-full border-4 border-purple-500/20 border-t-purple-500" />
+
               Cargando solicitudes...
             </div>
           ) : solicitudes.length === 0 ? (
@@ -289,8 +381,18 @@ export default function SolicitudesModal({
             <div className="space-y-3">
               {solicitudes.map((s) => {
                 const fullName =
-                  `${s.nombre ?? ''} ${s.apellido ?? ''}`.trim() || 'Sin nombre';
-                const disabledRow = s.estado !== 'pendiente';
+                  `${s.nombre ?? ''} ${s.apellido ?? ''}`.trim() ||
+                  'Sin nombre';
+
+                const disabledRow =
+                  s.estado !== 'pendiente';
+
+                const isProcessing =
+                  processingId === s.id;
+
+                const actionsDisabled =
+                  disabledRow ||
+                  processingId !== null;
 
                 return (
                   <div
@@ -305,6 +407,7 @@ export default function SolicitudesModal({
                           <p className="truncate text-sm font-medium text-white">
                             {fullName}
                           </p>
+
                           {estadoPill(s.estado)}
                         </div>
 
@@ -328,29 +431,35 @@ export default function SolicitudesModal({
                       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center lg:self-auto">
                         <button
                           type="button"
-                          onClick={() => handleAccion(s, 'rechazar')}
-                          disabled={disabledRow || processingId === s.id}
+                          onClick={() => {
+                            void handleAccion(s, 'rechazar');
+                          }}
+                          disabled={actionsDisabled}
                           className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all sm:px-3 sm:py-1.5 ${
                             disabledRow
                               ? 'cursor-not-allowed opacity-40'
                               : 'border-red-500/40 bg-red-500/10 text-red-300 hover:border-red-500/60 hover:bg-red-500/20'
                           }`}
                         >
-                          {processingId === s.id ? <IconSpinner /> : <IconX />}
+                          {isProcessing ? <IconSpinner /> : <IconX />}
+
                           Rechazar
                         </button>
 
                         <button
                           type="button"
-                          onClick={() => handleAccion(s, 'aprobar')}
-                          disabled={disabledRow || processingId === s.id}
+                          onClick={() => {
+                            void handleAccion(s, 'aprobar');
+                          }}
+                          disabled={actionsDisabled}
                           className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all sm:px-3 sm:py-1.5 ${
                             disabledRow
                               ? 'cursor-not-allowed opacity-40'
                               : 'border-green-500/40 bg-green-500/10 text-green-300 hover:border-green-500/60 hover:bg-green-500/20'
                           }`}
                         >
-                          {processingId === s.id ? <IconSpinner /> : <IconCheck />}
+                          {isProcessing ? <IconSpinner /> : <IconCheck />}
+
                           Aprobar
                         </button>
                       </div>

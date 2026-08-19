@@ -41,7 +41,13 @@ type FilaTrabajo = {
 };
 
 function hoyISO() {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 }
 
 function getInitials(u: Usuario) {
@@ -50,19 +56,26 @@ function getInitials(u: Usuario) {
 
 function minutosAHoras(min: number) {
   if (!min || min <= 0) return '—';
+
   const h = Math.floor(min / 60);
   const m = min % 60;
+
   return `${h}h ${m.toString().padStart(2, '0')}m`;
 }
 
 function calcularMinutosLocal(entrada: string, salida: string): number {
   if (!entrada || !salida) return 0;
+
   const [h1, m1] = entrada.split(':').map(Number);
   const [h2, m2] = salida.split(':').map(Number);
+
   return h2 * 60 + m2 - (h1 * 60 + m1);
 }
 
-function filaDefault(usuario: Usuario, registro: RegistroJornada | null): FilaTrabajo {
+function filaDefault(
+  usuario: Usuario,
+  registro: RegistroJornada | null
+): FilaTrabajo {
   return {
     usuario,
     registro,
@@ -83,10 +96,58 @@ function pad2(n: number) {
 
 function parseTime(value: string) {
   if (!value || !value.includes(':')) {
-    return { hour: '', minute: '' };
+    return {
+      hour: '',
+      minute: '',
+    };
   }
+
   const [hour, minute] = value.split(':');
-  return { hour, minute };
+
+  return {
+    hour,
+    minute,
+  };
+}
+
+function mapUsuario(raw: any): Usuario {
+  return {
+    id: String(raw?.id ?? ''),
+    nombre: String(raw?.nombre ?? ''),
+    apellido: String(raw?.apellido ?? ''),
+    rol: String(raw?.rol ?? ''),
+    puesto: String(raw?.puesto ?? ''),
+  };
+}
+
+function mapRegistro(raw: any): RegistroJornada {
+  return {
+    id: String(raw?.id ?? ''),
+    usuario_id: String(raw?.usuario_id ?? ''),
+    nombre: String(raw?.nombre ?? ''),
+    apellido: String(raw?.apellido ?? ''),
+    fecha: String(raw?.fecha ?? ''),
+    hora_entrada:
+      raw?.hora_entrada == null
+        ? null
+        : String(raw.hora_entrada),
+    hora_salida:
+      raw?.hora_salida == null
+        ? null
+        : String(raw.hora_salida),
+    minutos_trabajados:
+      Number(raw?.minutos_trabajados ?? 0) || 0,
+    estado:
+      raw?.estado === 'ausente'
+        ? 'ausente'
+        : raw?.estado === 'justificado'
+        ? 'justificado'
+        : 'presente',
+    motivo:
+      raw?.motivo == null
+        ? null
+        : String(raw.motivo),
+  };
 }
 
 const ESTADO_CFG = {
@@ -129,13 +190,18 @@ function BuscadorUsuarios({
         setAbierto(false);
       }
     }
+
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+
+    return () =>
+      document.removeEventListener('mousedown', handler);
   }, []);
 
   const filtrados = todosUsuarios.filter((u) => {
     if (usuariosEnTabla.has(u.id)) return false;
+
     const q = query.toLowerCase();
+
     return (
       u.nombre.toLowerCase().includes(q) ||
       u.apellido.toLowerCase().includes(q) ||
@@ -146,6 +212,7 @@ function BuscadorUsuarios({
 
   async function seleccionar(u: Usuario) {
     await onAgregar(u);
+
     setQuery('');
     setAbierto(false);
   }
@@ -153,9 +220,20 @@ function BuscadorUsuarios({
   return (
     <div ref={ref} className="relative w-full sm:w-auto">
       <div className="flex w-full items-center gap-2 rounded-xl border border-white/10 bg-slate-800/80 px-3 py-2 transition-all focus-within:border-cyan-500/40">
-        <svg className="h-4 w-4 shrink-0 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        <svg
+          className="h-4 w-4 shrink-0 text-slate-500"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
         </svg>
+
         <input
           type="text"
           placeholder="Buscar usuario a supervisar…"
@@ -173,7 +251,9 @@ function BuscadorUsuarios({
         <div className="absolute left-0 top-full z-30 mt-2 w-full overflow-hidden rounded-2xl border border-white/10 bg-slate-800 shadow-2xl shadow-black/50 sm:w-80">
           {filtrados.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-slate-500">
-              {query ? 'Sin resultados' : 'Todos los usuarios disponibles ya están en la tabla'}
+              {query
+                ? 'Sin resultados'
+                : 'Todos los usuarios disponibles ya están en la tabla'}
             </div>
           ) : (
             <div className="max-h-72 overflow-y-auto py-1.5">
@@ -186,10 +266,12 @@ function BuscadorUsuarios({
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 text-xs font-bold text-white">
                     {getInitials(u)}
                   </div>
+
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-white">
                       {u.nombre} {u.apellido}
                     </p>
+
                     <p className="truncate text-xs text-slate-500">
                       {u.puesto || u.rol}
                     </p>
@@ -238,8 +320,11 @@ function TimePickerField({
         setOpen(false);
       }
     }
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+
+    return () =>
+      document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   function openPicker() {
@@ -249,14 +334,21 @@ function TimePickerField({
     const viewportWidth = window.innerWidth;
     const estimatedHeight = 320;
     const spaceBelow = window.innerHeight - rect.bottom;
-    const openUp = spaceBelow < estimatedHeight && rect.top > spaceBelow;
+    const openUp =
+      spaceBelow < estimatedHeight &&
+      rect.top > spaceBelow;
 
-    const width = viewportWidth < 640 ? Math.min(viewportWidth - 24, 360) : 260;
+    const width =
+      viewportWidth < 640
+        ? Math.min(viewportWidth - 24, 360)
+        : 260;
+
     let left = rect.left;
 
     if (left + width > viewportWidth - 12) {
       left = viewportWidth - width - 12;
     }
+
     if (left < 12) left = 12;
 
     setDropdownStyle({
@@ -265,8 +357,15 @@ function TimePickerField({
       width,
       zIndex: 9999,
       ...(openUp
-        ? { bottom: window.innerHeight - rect.top + 4 }
-        : { top: rect.bottom + 4 }),
+        ? {
+            bottom:
+              window.innerHeight -
+              rect.top +
+              4,
+          }
+        : {
+            top: rect.bottom + 4,
+          }),
     });
 
     setOpen((v) => !v);
@@ -298,17 +397,23 @@ function TimePickerField({
 
   function selectHour(nextHour: string) {
     const nextMinute = minute || '00';
+
     onChange(`${nextHour}:${nextMinute}`);
   }
 
   function selectMinute(nextMinute: string) {
     const nextHour = hour || '08';
+
     onChange(`${nextHour}:${nextMinute}`);
   }
 
   function setNow() {
     const now = new Date();
-    onChange(`${pad2(now.getHours())}:${pad2(now.getMinutes())}`);
+
+    onChange(
+      `${pad2(now.getHours())}:${pad2(now.getMinutes())}`
+    );
+
     setOpen(false);
   }
 
@@ -329,6 +434,7 @@ function TimePickerField({
               <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500 sm:text-xs">
                 Seleccionar hora
               </p>
+
               <div className="text-base font-semibold text-white tabular-nums sm:text-lg">
                 {value || '--:--'}
               </div>
@@ -337,7 +443,10 @@ function TimePickerField({
 
           <div className="grid grid-cols-2 gap-0">
             <div className="border-r border-white/5">
-              <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-500">Hora</div>
+              <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-500">
+                Hora
+              </div>
+
               <div className="max-h-48 overflow-y-auto px-2 pb-2">
                 {hours.map((h) => (
                   <button
@@ -357,7 +466,10 @@ function TimePickerField({
             </div>
 
             <div>
-              <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-500">Min</div>
+              <div className="px-3 py-2 text-[10px] uppercase tracking-widest text-slate-500">
+                Min
+              </div>
+
               <div className="max-h-48 overflow-y-auto px-2 pb-2">
                 {minutes.map((m) => (
                   <button
@@ -385,6 +497,7 @@ function TimePickerField({
             >
               Limpiar
             </button>
+
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
@@ -393,6 +506,7 @@ function TimePickerField({
               >
                 Ahora
               </button>
+
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -417,14 +531,32 @@ function TimePickerField({
         className={`w-full rounded-xl border bg-slate-900/70 px-3 py-2 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${accentMap.border} ${accentMap.ring}`}
       >
         <div className="flex items-center justify-between gap-2">
-          <span className={`truncate text-sm tabular-nums ${value ? 'font-medium text-white' : 'text-slate-500'}`}>
+          <span
+            className={`truncate text-sm tabular-nums ${
+              value
+                ? 'font-medium text-white'
+                : 'text-slate-500'
+            }`}
+          >
             {value || placeholder}
           </span>
-          <svg className={`h-4 w-4 shrink-0 ${accentMap.icon}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3M12 22a10 10 0 100-20 10 10 0 000 20z" />
+
+          <svg
+            className={`h-4 w-4 shrink-0 ${accentMap.icon}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8v4l3 3M12 22a10 10 0 100-20 10 10 0 000 20z"
+            />
           </svg>
         </div>
       </button>
+
       {dropdown}
     </div>
   );
@@ -442,18 +574,27 @@ function FilaRegistro({
   onQuitar: () => void;
 }) {
   const cfg = ESTADO_CFG[fila.estado];
-  const permiteHoras = fila.estado === 'presente' || fila.estado === 'justificado';
+
+  const permiteHoras =
+    fila.estado === 'presente' ||
+    fila.estado === 'justificado';
 
   const minutosLocal =
-    permiteHoras && fila.hora_entrada && fila.hora_salida
-      ? calcularMinutosLocal(fila.hora_entrada, fila.hora_salida)
+    permiteHoras &&
+    fila.hora_entrada &&
+    fila.hora_salida
+      ? calcularMinutosLocal(
+          fila.hora_entrada,
+          fila.hora_salida
+        )
       : 0;
 
   const horasCalculadas =
     permiteHoras
       ? minutosLocal > 0
         ? minutosAHoras(minutosLocal)
-        : fila.hora_entrada && !fila.hora_salida
+        : fila.hora_entrada &&
+          !fila.hora_salida
         ? 'Pendiente salida'
         : '—'
       : '—';
@@ -461,11 +602,11 @@ function FilaRegistro({
   const puedeGuardar =
     !fila.saving &&
     fila.dirty &&
-    (
-      fila.estado === 'ausente' ||
-      (fila.estado === 'presente' && !!fila.hora_entrada) ||
-      (fila.estado === 'justificado' && !!fila.motivo.trim())
-    );
+    (fila.estado === 'ausente' ||
+      (fila.estado === 'presente' &&
+        !!fila.hora_entrada) ||
+      (fila.estado === 'justificado' &&
+        !!fila.motivo.trim()));
 
   const inputCls =
     'w-full rounded-lg border border-white/8 bg-slate-900/70 px-2.5 py-2 text-sm text-white tabular-nums placeholder-slate-700 transition-all focus:border-cyan-500/40 focus:outline-none disabled:opacity-50';
@@ -483,12 +624,16 @@ function FilaRegistro({
           >
             {getInitials(fila.usuario)}
           </div>
+
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-white">
-              {fila.usuario.nombre} {fila.usuario.apellido}
+              {fila.usuario.nombre}{' '}
+              {fila.usuario.apellido}
             </p>
+
             <p className="truncate text-xs text-slate-500">
-              {fila.usuario.puesto || fila.usuario.rol}
+              {fila.usuario.puesto ||
+                fila.usuario.rol}
             </p>
           </div>
         </div>
@@ -496,9 +641,17 @@ function FilaRegistro({
 
       <td className="w-56 px-4 py-3">
         <div className="flex gap-1">
-          {(['presente', 'ausente', 'justificado'] as Estado[]).map((e) => {
+          {(
+            [
+              'presente',
+              'ausente',
+              'justificado',
+            ] as Estado[]
+          ).map((e) => {
             const c = ESTADO_CFG[e];
-            const active = fila.estado === e;
+            const active =
+              fila.estado === e;
+
             return (
               <button
                 key={e}
@@ -509,8 +662,15 @@ function FilaRegistro({
                     dirty: true,
                     saved: false,
                     error: '',
-                    ...(e === 'ausente' ? { hora_entrada: '', hora_salida: '' } : {}),
-                    ...(e !== 'justificado' ? { motivo: '' } : {}),
+                    ...(e === 'ausente'
+                      ? {
+                          hora_entrada: '',
+                          hora_salida: '',
+                        }
+                      : {}),
+                    ...(e !== 'justificado'
+                      ? { motivo: '' }
+                      : {}),
                   })
                 }
                 className={`flex-1 rounded-lg border py-1.5 text-[10px] font-semibold transition-all disabled:opacity-50 ${
@@ -532,13 +692,24 @@ function FilaRegistro({
             value={fila.hora_entrada}
             disabled={fila.saving}
             placeholder="Entrada"
-            accent={fila.estado === 'justificado' ? 'amber' : 'emerald'}
+            accent={
+              fila.estado === 'justificado'
+                ? 'amber'
+                : 'emerald'
+            }
             onChange={(value) =>
-              onChange({ hora_entrada: value, dirty: true, saved: false, error: '' })
+              onChange({
+                hora_entrada: value,
+                dirty: true,
+                saved: false,
+                error: '',
+              })
             }
           />
         ) : (
-          <span className="text-sm text-slate-700">—</span>
+          <span className="text-sm text-slate-700">
+            —
+          </span>
         )}
       </td>
 
@@ -548,13 +719,24 @@ function FilaRegistro({
             value={fila.hora_salida}
             disabled={fila.saving}
             placeholder="Salida"
-            accent={fila.estado === 'justificado' ? 'amber' : 'cyan'}
+            accent={
+              fila.estado === 'justificado'
+                ? 'amber'
+                : 'cyan'
+            }
             onChange={(value) =>
-              onChange({ hora_salida: value, dirty: true, saved: false, error: '' })
+              onChange({
+                hora_salida: value,
+                dirty: true,
+                saved: false,
+                error: '',
+              })
             }
           />
         ) : (
-          <span className="text-sm text-slate-700">—</span>
+          <span className="text-sm text-slate-700">
+            —
+          </span>
         )}
       </td>
 
@@ -567,16 +749,25 @@ function FilaRegistro({
             value={fila.motivo}
             disabled={fila.saving}
             onChange={(e) =>
-              onChange({ motivo: e.target.value, dirty: true, saved: false, error: '' })
+              onChange({
+                motivo: e.target.value,
+                dirty: true,
+                saved: false,
+                error: '',
+              })
             }
           />
         ) : (
-          <span className="text-sm text-slate-700">—</span>
+          <span className="text-sm text-slate-700">
+            —
+          </span>
         )}
       </td>
 
       <td className="w-36 px-4 py-3">
-        <span className={`text-sm font-medium tabular-nums ${cfg.color}`}>
+        <span
+          className={`text-sm font-medium tabular-nums ${cfg.color}`}
+        >
           {horasCalculadas}
         </span>
       </td>
@@ -594,7 +785,12 @@ function FilaRegistro({
                 : 'cursor-not-allowed border border-white/6 bg-slate-800/60 text-slate-700'
             }`}
           >
-            {fila.saving ? 'Guardando…' : fila.saved && !fila.dirty ? 'Guardado' : 'Guardar'}
+            {fila.saving
+              ? 'Guardando…'
+              : fila.saved &&
+                !fila.dirty
+              ? 'Guardado'
+              : 'Guardar'}
           </button>
 
           {!fila.registro && (
@@ -604,15 +800,27 @@ function FilaRegistro({
               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 transition-all hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
               title="Quitar de la tabla"
             >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="h-3.5 w-3.5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           )}
         </div>
 
         {fila.error && (
-          <p className="mt-1 text-[10px] leading-tight text-red-400">{fila.error}</p>
+          <p className="mt-1 text-[10px] leading-tight text-red-400">
+            {fila.error}
+          </p>
         )}
       </td>
     </tr>
@@ -631,18 +839,27 @@ function FilaRegistroMobile({
   onQuitar: () => void;
 }) {
   const cfg = ESTADO_CFG[fila.estado];
-  const permiteHoras = fila.estado === 'presente' || fila.estado === 'justificado';
+
+  const permiteHoras =
+    fila.estado === 'presente' ||
+    fila.estado === 'justificado';
 
   const minutosLocal =
-    permiteHoras && fila.hora_entrada && fila.hora_salida
-      ? calcularMinutosLocal(fila.hora_entrada, fila.hora_salida)
+    permiteHoras &&
+    fila.hora_entrada &&
+    fila.hora_salida
+      ? calcularMinutosLocal(
+          fila.hora_entrada,
+          fila.hora_salida
+        )
       : 0;
 
   const horasCalculadas =
     permiteHoras
       ? minutosLocal > 0
         ? minutosAHoras(minutosLocal)
-        : fila.hora_entrada && !fila.hora_salida
+        : fila.hora_entrada &&
+          !fila.hora_salida
         ? 'Pendiente salida'
         : '—'
       : '—';
@@ -650,11 +867,11 @@ function FilaRegistroMobile({
   const puedeGuardar =
     !fila.saving &&
     fila.dirty &&
-    (
-      fila.estado === 'ausente' ||
-      (fila.estado === 'presente' && !!fila.hora_entrada) ||
-      (fila.estado === 'justificado' && !!fila.motivo.trim())
-    );
+    (fila.estado === 'ausente' ||
+      (fila.estado === 'presente' &&
+        !!fila.hora_entrada) ||
+      (fila.estado === 'justificado' &&
+        !!fila.motivo.trim()));
 
   const inputCls =
     'w-full rounded-xl border border-white/8 bg-slate-900/70 px-3 py-2.5 text-sm text-white placeholder-slate-700 transition-all focus:border-cyan-500/40 focus:outline-none disabled:opacity-50';
@@ -672,12 +889,16 @@ function FilaRegistroMobile({
           >
             {getInitials(fila.usuario)}
           </div>
+
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">
-              {fila.usuario.nombre} {fila.usuario.apellido}
+              {fila.usuario.nombre}{' '}
+              {fila.usuario.apellido}
             </p>
+
             <p className="truncate text-xs text-slate-500">
-              {fila.usuario.puesto || fila.usuario.rol}
+              {fila.usuario.puesto ||
+                fila.usuario.rol}
             </p>
           </div>
         </div>
@@ -689,19 +910,40 @@ function FilaRegistroMobile({
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-all hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
             title="Quitar de la tabla"
           >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         )}
       </div>
 
       <div className="mt-4">
-        <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">Estado</p>
+        <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
+          Estado
+        </p>
+
         <div className="grid grid-cols-1 gap-2 xs:grid-cols-3">
-          {(['presente', 'ausente', 'justificado'] as Estado[]).map((e) => {
+          {(
+            [
+              'presente',
+              'ausente',
+              'justificado',
+            ] as Estado[]
+          ).map((e) => {
             const c = ESTADO_CFG[e];
-            const active = fila.estado === e;
+            const active =
+              fila.estado === e;
+
             return (
               <button
                 key={e}
@@ -712,8 +954,15 @@ function FilaRegistroMobile({
                     dirty: true,
                     saved: false,
                     error: '',
-                    ...(e === 'ausente' ? { hora_entrada: '', hora_salida: '' } : {}),
-                    ...(e !== 'justificado' ? { motivo: '' } : {}),
+                    ...(e === 'ausente'
+                      ? {
+                          hora_entrada: '',
+                          hora_salida: '',
+                        }
+                      : {}),
+                    ...(e !== 'justificado'
+                      ? { motivo: '' }
+                      : {}),
                   })
                 }
                 className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-all disabled:opacity-50 ${
@@ -731,15 +980,27 @@ function FilaRegistroMobile({
 
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">Hora entrada</p>
+          <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
+            Hora entrada
+          </p>
+
           {permiteHoras ? (
             <TimePickerField
               value={fila.hora_entrada}
               disabled={fila.saving}
               placeholder="Entrada"
-              accent={fila.estado === 'justificado' ? 'amber' : 'emerald'}
+              accent={
+                fila.estado === 'justificado'
+                  ? 'amber'
+                  : 'emerald'
+              }
               onChange={(value) =>
-                onChange({ hora_entrada: value, dirty: true, saved: false, error: '' })
+                onChange({
+                  hora_entrada: value,
+                  dirty: true,
+                  saved: false,
+                  error: '',
+                })
               }
             />
           ) : (
@@ -750,15 +1011,27 @@ function FilaRegistroMobile({
         </div>
 
         <div>
-          <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">Hora salida</p>
+          <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
+            Hora salida
+          </p>
+
           {permiteHoras ? (
             <TimePickerField
               value={fila.hora_salida}
               disabled={fila.saving}
               placeholder="Salida"
-              accent={fila.estado === 'justificado' ? 'amber' : 'cyan'}
+              accent={
+                fila.estado === 'justificado'
+                  ? 'amber'
+                  : 'cyan'
+              }
               onChange={(value) =>
-                onChange({ hora_salida: value, dirty: true, saved: false, error: '' })
+                onChange({
+                  hora_salida: value,
+                  dirty: true,
+                  saved: false,
+                  error: '',
+                })
               }
             />
           ) : (
@@ -771,7 +1044,10 @@ function FilaRegistroMobile({
 
       {fila.estado === 'justificado' && (
         <div className="mt-4">
-          <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">Motivo</p>
+          <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
+            Motivo
+          </p>
+
           <input
             type="text"
             placeholder="Motivo…"
@@ -779,7 +1055,12 @@ function FilaRegistroMobile({
             value={fila.motivo}
             disabled={fila.saving}
             onChange={(e) =>
-              onChange({ motivo: e.target.value, dirty: true, saved: false, error: '' })
+              onChange({
+                motivo: e.target.value,
+                dirty: true,
+                saved: false,
+                error: '',
+              })
             }
           />
         </div>
@@ -787,8 +1068,13 @@ function FilaRegistroMobile({
 
       <div className="mt-4 flex flex-col gap-3 rounded-xl border border-white/6 bg-slate-950/30 p-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-[10px] uppercase tracking-widest text-slate-500">Tiempo</p>
-          <p className={`mt-1 text-sm font-semibold tabular-nums ${cfg.color}`}>
+          <p className="text-[10px] uppercase tracking-widest text-slate-500">
+            Tiempo
+          </p>
+
+          <p
+            className={`mt-1 text-sm font-semibold tabular-nums ${cfg.color}`}
+          >
             {horasCalculadas}
           </p>
         </div>
@@ -804,12 +1090,19 @@ function FilaRegistroMobile({
               : 'cursor-not-allowed border border-white/6 bg-slate-800/60 text-slate-700'
           }`}
         >
-          {fila.saving ? 'Guardando…' : fila.saved && !fila.dirty ? 'Guardado' : 'Guardar'}
+          {fila.saving
+            ? 'Guardando…'
+            : fila.saved &&
+              !fila.dirty
+            ? 'Guardado'
+            : 'Guardar'}
         </button>
       </div>
 
       {fila.error && (
-        <p className="mt-3 text-xs text-red-400">{fila.error}</p>
+        <p className="mt-3 text-xs text-red-400">
+          {fila.error}
+        </p>
       )}
     </div>
   );
@@ -817,298 +1110,825 @@ function FilaRegistroMobile({
 
 export default function JornadaPage() {
   const [fecha, setFecha] = useState(hoyISO());
-  const [todosUsuarios, setTodosUsuarios] = useState<Usuario[]>([]);
-  const [usuariosAsignados, setUsuariosAsignados] = useState<Usuario[]>([]);
-  const [filas, setFilas] = useState<FilaTrabajo[]>([]);
-  const [loadingUsuarios, setLoadingUsuarios] = useState(true);
-  const [loadingRegistros, setLoadingRegistros] = useState(false);
-  const [guardandoAsignacion, setGuardandoAsignacion] = useState(false);
-  const [errorGlobal, setErrorGlobal] = useState('');
 
-  const fetchDisponibles = useRef(async () => {});
-  const fetchAsignados = useRef(async (_fecha: string) => {});
-  const fetchRegistros = useRef(async (_fecha: string) => {});
+  const [todosUsuarios, setTodosUsuarios] =
+    useState<Usuario[]>([]);
+
+  const [
+    usuariosAsignados,
+    setUsuariosAsignados,
+  ] = useState<Usuario[]>([]);
+
+  const [filas, setFilas] =
+    useState<FilaTrabajo[]>([]);
+
+  const [
+    loadingUsuarios,
+    setLoadingUsuarios,
+  ] = useState(true);
+
+  const [
+    loadingRegistros,
+    setLoadingRegistros,
+  ] = useState(false);
+
+  const [
+    guardandoAsignacion,
+    setGuardandoAsignacion,
+  ] = useState(false);
+
+  const [
+    errorGlobal,
+    setErrorGlobal,
+  ] = useState('');
+
+  const fetchDisponibles = useRef(
+    async () => {}
+  );
+
+  const fetchAsignados = useRef(
+    async (_fecha: string) => {}
+  );
+
+  const fetchRegistros = useRef(
+    async (_fecha: string) => {}
+  );
 
   useEffect(() => {
-    fetchDisponibles.current = async () => {
-      const resDisponibles = await fetch('/api/jornada/usuarios?modo=disponibles', {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      const dataDisponibles = await resDisponibles.json();
-      if (!dataDisponibles.ok) {
-        throw new Error(dataDisponibles.error ?? 'Error al cargar usuarios disponibles');
-      }
-      setTodosUsuarios(dataDisponibles.data ?? []);
-    };
+    fetchDisponibles.current =
+      async () => {
+        const resDisponibles =
+          await fetch(
+            '/api/jornada/usuarios?modo=disponibles',
+            {
+              method: 'GET',
+              credentials: 'include',
+              cache: 'no-store',
+            }
+          );
 
-    fetchAsignados.current = async (fechaActual: string) => {
-      const resAsignados = await fetch(`/api/jornada/usuarios?fecha=${encodeURIComponent(fechaActual)}`, {
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      const dataAsignados = await resAsignados.json();
-      if (!dataAsignados.ok) {
-        throw new Error(dataAsignados.error ?? 'Error al cargar asignados');
-      }
-      setUsuariosAsignados(dataAsignados.data ?? []);
-    };
+        const dataDisponibles =
+          await resDisponibles
+            .json()
+            .catch(() => ({}));
+
+        if (
+          !resDisponibles.ok ||
+          dataDisponibles?.ok !== true
+        ) {
+          throw new Error(
+            typeof dataDisponibles?.error ===
+              'string'
+              ? dataDisponibles.error
+              : 'Error al cargar usuarios disponibles'
+          );
+        }
+
+        const usuarios = Array.isArray(
+          dataDisponibles?.data
+        )
+          ? dataDisponibles.data.map(
+              mapUsuario
+            )
+          : [];
+
+        setTodosUsuarios(usuarios);
+      };
+
+    fetchAsignados.current =
+      async (fechaActual: string) => {
+        const resAsignados =
+          await fetch(
+            `/api/jornada/usuarios?fecha=${encodeURIComponent(
+              fechaActual
+            )}`,
+            {
+              method: 'GET',
+              credentials: 'include',
+              cache: 'no-store',
+            }
+          );
+
+        const dataAsignados =
+          await resAsignados
+            .json()
+            .catch(() => ({}));
+
+        if (
+          !resAsignados.ok ||
+          dataAsignados?.ok !== true
+        ) {
+          throw new Error(
+            typeof dataAsignados?.error ===
+              'string'
+              ? dataAsignados.error
+              : 'Error al cargar asignados'
+          );
+        }
+
+        const asignados = Array.isArray(
+          dataAsignados?.data
+        )
+          ? dataAsignados.data.map(
+              mapUsuario
+            )
+          : [];
+
+        setUsuariosAsignados(asignados);
+      };
   }, []);
 
   useEffect(() => {
-    const cargarUsuarios = async () => {
-      setLoadingUsuarios(true);
-      setErrorGlobal('');
-      try {
-        await fetchDisponibles.current();
-        await fetchAsignados.current(fecha);
-      } catch (error) {
-        setErrorGlobal(
-          error instanceof Error ? error.message : 'Error de red al cargar usuarios.'
-        );
-      } finally {
-        setLoadingUsuarios(false);
-      }
-    };
-    cargarUsuarios();
+    const cargarUsuarios =
+      async () => {
+        setLoadingUsuarios(true);
+        setErrorGlobal('');
+
+        try {
+          await fetchDisponibles.current();
+          await fetchAsignados.current(
+            fecha
+          );
+        } catch (error) {
+          console.error(
+            'Error cargando usuarios de jornada:',
+            error
+          );
+
+          setErrorGlobal(
+            error instanceof Error
+              ? error.message
+              : 'Error de red al cargar usuarios.'
+          );
+        } finally {
+          setLoadingUsuarios(false);
+        }
+      };
+
+    void cargarUsuarios();
   }, [fecha]);
 
   useEffect(() => {
-    fetchRegistros.current = async (fechaActual: string) => {
-      setLoadingRegistros(true);
-      setErrorGlobal('');
-      try {
-        const [resRegistros, resAsignados] = await Promise.all([
-          fetch(`/api/jornada?fecha=${encodeURIComponent(fechaActual)}`, {
-            credentials: 'include',
-            cache: 'no-store',
-          }),
-          fetch(`/api/jornada/usuarios?fecha=${encodeURIComponent(fechaActual)}`, {
-            credentials: 'include',
-            cache: 'no-store',
-          }),
-        ]);
+    fetchRegistros.current =
+      async (fechaActual: string) => {
+        setLoadingRegistros(true);
+        setErrorGlobal('');
 
-        const dataRegistros = await resRegistros.json();
-        const dataAsignados = await resAsignados.json();
+        try {
+          const [
+            resRegistros,
+            resAsignados,
+          ] = await Promise.all([
+            fetch(
+              `/api/jornada?fecha=${encodeURIComponent(
+                fechaActual
+              )}`,
+              {
+                method: 'GET',
+                credentials: 'include',
+                cache: 'no-store',
+              }
+            ),
 
-        if (!dataRegistros.ok) {
-          setErrorGlobal(dataRegistros.error ?? 'Error al obtener registros');
-          setLoadingRegistros(false);
-          return;
-        }
-        if (!dataAsignados.ok) {
-          setErrorGlobal(dataAsignados.error ?? 'Error al obtener asignados');
-          setLoadingRegistros(false);
-          return;
-        }
+            fetch(
+              `/api/jornada/usuarios?fecha=${encodeURIComponent(
+                fechaActual
+              )}`,
+              {
+                method: 'GET',
+                credentials: 'include',
+                cache: 'no-store',
+              }
+            ),
+          ]);
 
-        const registros: RegistroJornada[] = dataRegistros.data ?? [];
-        const asignados: Usuario[] = dataAsignados.data ?? [];
+          const [
+            dataRegistros,
+            dataAsignados,
+          ] = await Promise.all([
+            resRegistros
+              .json()
+              .catch(() => ({})),
 
-        setUsuariosAsignados(asignados);
+            resAsignados
+              .json()
+              .catch(() => ({})),
+          ]);
 
-        const registrosPorUsuario = new Map(
-          registros.map((r) => [String(r.usuario_id), r])
-        );
-
-        const baseUsuarios = [...asignados];
-
-        for (const reg of registros) {
-          if (!baseUsuarios.some((u) => u.id === reg.usuario_id)) {
-            const usuarioMatch =
-              todosUsuarios.find((u) => u.id === reg.usuario_id) ??
-              ({
-                id: String(reg.usuario_id),
-                nombre: String(reg.nombre ?? ''),
-                apellido: String(reg.apellido ?? ''),
-                rol: '',
-                puesto: '',
-              } as Usuario);
-            baseUsuarios.push(usuarioMatch);
+          if (
+            !resRegistros.ok ||
+            dataRegistros?.ok !== true
+          ) {
+            throw new Error(
+              typeof dataRegistros?.error ===
+                'string'
+                ? dataRegistros.error
+                : 'Error al obtener registros'
+            );
           }
-        }
 
-        setFilas((prev) => {
-          const prevMap = new Map(prev.map((f) => [f.usuario.id, f]));
-          return baseUsuarios.map((usuario) => {
-            const registro = registrosPorUsuario.get(usuario.id) ?? null;
-            const previa = prevMap.get(usuario.id);
-            if (previa && previa.dirty) {
-              return { ...previa, registro };
+          if (
+            !resAsignados.ok ||
+            dataAsignados?.ok !== true
+          ) {
+            throw new Error(
+              typeof dataAsignados?.error ===
+                'string'
+                ? dataAsignados.error
+                : 'Error al obtener asignados'
+            );
+          }
+
+          const registros: RegistroJornada[] =
+            Array.isArray(
+              dataRegistros?.data
+            )
+              ? dataRegistros.data.map(
+                  mapRegistro
+                )
+              : [];
+
+          const asignados: Usuario[] =
+            Array.isArray(
+              dataAsignados?.data
+            )
+              ? dataAsignados.data.map(
+                  mapUsuario
+                )
+              : [];
+
+          setUsuariosAsignados(
+            asignados
+          );
+
+          const registrosPorUsuario =
+            new Map(
+              registros.map((r) => [
+                String(r.usuario_id),
+                r,
+              ])
+            );
+
+          const baseUsuarios = [
+            ...asignados,
+          ];
+
+          for (const reg of registros) {
+            if (
+              !baseUsuarios.some(
+                (u) =>
+                  String(u.id) ===
+                  String(reg.usuario_id)
+              )
+            ) {
+              const usuarioMatch =
+                todosUsuarios.find(
+                  (u) =>
+                    String(u.id) ===
+                    String(
+                      reg.usuario_id
+                    )
+                ) ??
+                ({
+                  id: String(
+                    reg.usuario_id
+                  ),
+                  nombre: String(
+                    reg.nombre ?? ''
+                  ),
+                  apellido: String(
+                    reg.apellido ?? ''
+                  ),
+                  rol: '',
+                  puesto: '',
+                } as Usuario);
+
+              baseUsuarios.push(
+                usuarioMatch
+              );
             }
-            return filaDefault(usuario, registro);
+          }
+
+          setFilas((prev) => {
+            const prevMap = new Map(
+              prev.map((f) => [
+                f.usuario.id,
+                f,
+              ])
+            );
+
+            return baseUsuarios.map(
+              (usuario) => {
+                const registro =
+                  registrosPorUsuario.get(
+                    usuario.id
+                  ) ?? null;
+
+                const previa =
+                  prevMap.get(
+                    usuario.id
+                  );
+
+                if (
+                  previa &&
+                  previa.dirty
+                ) {
+                  return {
+                    ...previa,
+                    usuario,
+                    registro,
+                  };
+                }
+
+                return filaDefault(
+                  usuario,
+                  registro
+                );
+              }
+            );
           });
-        });
-      } catch {
-        setErrorGlobal('Error de red al obtener registros.');
-      } finally {
-        setLoadingRegistros(false);
-      }
-    };
+        } catch (error) {
+          console.error(
+            'Error obteniendo registros de jornada:',
+            error
+          );
+
+          setErrorGlobal(
+            error instanceof Error
+              ? error.message
+              : 'Error de red al obtener registros.'
+          );
+        } finally {
+          setLoadingRegistros(
+            false
+          );
+        }
+      };
   }, [todosUsuarios]);
 
   useEffect(() => {
     if (!loadingUsuarios) {
-      fetchRegistros.current(fecha);
+      void fetchRegistros.current(
+        fecha
+      );
     }
   }, [fecha, loadingUsuarios]);
 
-  async function persistirAsignados(siguienteUsuariosIds: string[]) {
+  async function persistirAsignados(
+    siguienteUsuariosIds: string[]
+  ) {
+    if (guardandoAsignacion) {
+      return false;
+    }
+
     setGuardandoAsignacion(true);
     setErrorGlobal('');
+
     try {
-      const res = await fetch('/api/jornada/usuarios', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuarios_ids: siguienteUsuariosIds, fecha }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setErrorGlobal(data.error ?? 'Error al actualizar usuarios asignados');
+      const idsNormalizados = [
+        ...new Set(
+          siguienteUsuariosIds
+            .map((id) =>
+              String(id).trim()
+            )
+            .filter(Boolean)
+        ),
+      ];
+
+      const res = await fetch(
+        '/api/jornada/usuarios',
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify({
+            usuarios_ids:
+              idsNormalizados,
+            fecha,
+          }),
+        }
+      );
+
+      const data = await res
+        .json()
+        .catch(() => ({}));
+
+      if (
+        !res.ok ||
+        data?.ok !== true
+      ) {
+        setErrorGlobal(
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Error al actualizar usuarios asignados'
+        );
+
         return false;
       }
-      setUsuariosAsignados(data.data ?? []);
+
+      const asignados =
+        Array.isArray(data?.data)
+          ? data.data.map(
+              mapUsuario
+            )
+          : [];
+
+      setUsuariosAsignados(
+        asignados
+      );
+
       return true;
-    } catch {
-      setErrorGlobal('Error de red al actualizar usuarios asignados.');
+    } catch (error) {
+      console.error(
+        'Error actualizando usuarios asignados:',
+        error
+      );
+
+      setErrorGlobal(
+        'Error de red al actualizar usuarios asignados.'
+      );
+
       return false;
     } finally {
-      setGuardandoAsignacion(false);
+      setGuardandoAsignacion(
+        false
+      );
     }
   }
 
-  async function agregarUsuario(u: Usuario) {
-    if (filas.some((f) => f.usuario.id === u.id)) return;
-    const idsActuales = filas.map((f) => f.usuario.id);
-    const nuevosIds = [...new Set([...idsActuales, u.id])];
-    const ok = await persistirAsignados(nuevosIds);
-    if (!ok) return;
-    setFilas((prev) => {
-      if (prev.some((f) => f.usuario.id === u.id)) return prev;
-      return [...prev, filaDefault(u, null)];
-    });
-    await fetchRegistros.current(fecha);
-  }
-
-  async function quitarFila(usuarioId: string) {
-    const fila = filas.find((f) => f.usuario.id === usuarioId);
-    if (fila?.registro) {
-      setFilas((prev) => prev.filter((f) => f.usuario.id !== usuarioId));
+  async function agregarUsuario(
+    u: Usuario
+  ) {
+    if (
+      filas.some(
+        (f) =>
+          f.usuario.id === u.id
+      )
+    ) {
       return;
     }
-    const nuevosIds = filas
-      .filter((f) => f.usuario.id !== usuarioId)
-      .map((f) => f.usuario.id);
-    const ok = await persistirAsignados(nuevosIds);
-    if (!ok) return;
-    setFilas((prev) => prev.filter((f) => f.usuario.id !== usuarioId));
-    await fetchRegistros.current(fecha);
-  }
 
-  function actualizarFila(usuarioId: string, campos: Partial<FilaTrabajo>) {
-    setFilas((prev) =>
-      prev.map((f) => (f.usuario.id === usuarioId ? { ...f, ...campos } : f))
+    /*
+     * Importante:
+     * solo utilizamos los usuarios realmente
+     * asignados para construir la nueva lista.
+     *
+     * "filas" también puede contener usuarios
+     * con registros históricos que ya no están
+     * asignados a esta fecha.
+     */
+    const idsActuales =
+      usuariosAsignados.map(
+        (usuario) => usuario.id
+      );
+
+    const nuevosIds = [
+      ...new Set([
+        ...idsActuales,
+        u.id,
+      ]),
+    ];
+
+    const ok =
+      await persistirAsignados(
+        nuevosIds
+      );
+
+    if (!ok) return;
+
+    setFilas((prev) => {
+      if (
+        prev.some(
+          (f) =>
+            f.usuario.id === u.id
+        )
+      ) {
+        return prev;
+      }
+
+      return [
+        ...prev,
+        filaDefault(u, null),
+      ];
+    });
+
+    await fetchRegistros.current(
+      fecha
     );
   }
 
-  async function guardarFila(usuarioId: string) {
-    const fila = filas.find((f) => f.usuario.id === usuarioId);
+  async function quitarFila(
+    usuarioId: string
+  ) {
+    const fila = filas.find(
+      (f) =>
+        f.usuario.id === usuarioId
+    );
+
+    /*
+     * Una fila con registro existente no
+     * representa necesariamente una asignación
+     * activa. Además el botón de quitar solo
+     * aparece cuando no existe registro.
+     */
+    if (fila?.registro) {
+      setFilas((prev) =>
+        prev.filter(
+          (f) =>
+            f.usuario.id !==
+            usuarioId
+        )
+      );
+
+      return;
+    }
+
+    const nuevosIds =
+      usuariosAsignados
+        .filter(
+          (u) =>
+            u.id !== usuarioId
+        )
+        .map((u) => u.id);
+
+    const ok =
+      await persistirAsignados(
+        nuevosIds
+      );
+
+    if (!ok) return;
+
+    setFilas((prev) =>
+      prev.filter(
+        (f) =>
+          f.usuario.id !==
+          usuarioId
+      )
+    );
+
+    await fetchRegistros.current(
+      fecha
+    );
+  }
+
+  function actualizarFila(
+    usuarioId: string,
+    campos: Partial<FilaTrabajo>
+  ) {
+    setFilas((prev) =>
+      prev.map((f) =>
+        f.usuario.id === usuarioId
+          ? {
+              ...f,
+              ...campos,
+            }
+          : f
+      )
+    );
+  }
+
+  async function guardarFila(
+    usuarioId: string
+  ) {
+    const fila = filas.find(
+      (f) =>
+        f.usuario.id === usuarioId
+    );
+
     if (!fila) return;
 
-    const permiteHoras = fila.estado === 'presente' || fila.estado === 'justificado';
+    if (fila.saving) return;
 
-    if (fila.estado === 'presente' && !fila.hora_entrada) {
-      actualizarFila(usuarioId, { error: 'Ingresa la hora de entrada' });
+    const permiteHoras =
+      fila.estado === 'presente' ||
+      fila.estado === 'justificado';
+
+    if (
+      fila.estado === 'presente' &&
+      !fila.hora_entrada
+    ) {
+      actualizarFila(usuarioId, {
+        error:
+          'Ingresa la hora de entrada',
+      });
+
       return;
     }
-    if (fila.estado === 'justificado' && !fila.motivo.trim()) {
-      actualizarFila(usuarioId, { error: 'Ingresa un motivo' });
+
+    if (
+      fila.estado ===
+        'justificado' &&
+      !fila.motivo.trim()
+    ) {
+      actualizarFila(usuarioId, {
+        error:
+          'Ingresa un motivo',
+      });
+
       return;
     }
-    if (permiteHoras && fila.hora_entrada && fila.hora_salida) {
-      const mins = calcularMinutosLocal(fila.hora_entrada, fila.hora_salida);
+
+    if (
+      permiteHoras &&
+      fila.hora_entrada &&
+      fila.hora_salida
+    ) {
+      const mins =
+        calcularMinutosLocal(
+          fila.hora_entrada,
+          fila.hora_salida
+        );
+
       if (mins <= 0) {
         actualizarFila(usuarioId, {
-          error: 'La hora de salida debe ser mayor que la de entrada',
+          error:
+            'La hora de salida debe ser mayor que la de entrada',
         });
+
         return;
       }
     }
 
-    actualizarFila(usuarioId, { saving: true, error: '' });
+    actualizarFila(usuarioId, {
+      saving: true,
+      error: '',
+    });
 
     try {
-      const body: Record<string, unknown> = {
-        usuario_id: fila.usuario.id,
+      const body: Record<
+        string,
+        unknown
+      > = {
+        usuario_id:
+          fila.usuario.id,
+
         fecha,
+
         estado: fila.estado,
-        motivo: fila.estado === 'justificado' ? fila.motivo.trim() : null,
-        hora_entrada:
-          fila.estado === 'presente' || fila.estado === 'justificado'
-            ? fila.hora_entrada || null
+
+        motivo:
+          fila.estado ===
+          'justificado'
+            ? fila.motivo.trim()
             : null,
+
+        hora_entrada:
+          fila.estado ===
+            'presente' ||
+          fila.estado ===
+            'justificado'
+            ? fila.hora_entrada ||
+              null
+            : null,
+
         hora_salida:
-          fila.estado === 'presente' || fila.estado === 'justificado'
-            ? fila.hora_salida || null
+          fila.estado ===
+            'presente' ||
+          fila.estado ===
+            'justificado'
+            ? fila.hora_salida ||
+              null
             : null,
       };
 
-      const res = await fetch('/api/jornada', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
+      const res = await fetch(
+        '/api/jornada',
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify(body),
+        }
+      );
 
-      if (!data.ok) {
-        actualizarFila(usuarioId, { saving: false, error: data.error ?? 'Error al guardar' });
+      const data = await res
+        .json()
+        .catch(() => ({}));
+
+      if (
+        !res.ok ||
+        data?.ok !== true
+      ) {
+        actualizarFila(usuarioId, {
+          saving: false,
+
+          error:
+            typeof data?.error ===
+            'string'
+              ? data.error
+              : 'Error al guardar',
+        });
+
         return;
       }
 
-      await fetchRegistros.current(fecha);
+      /*
+       * Primero dejamos la fila local como
+       * guardada para que el refresco posterior
+       * pueda recuperar el registro definitivo.
+       */
+      actualizarFila(usuarioId, {
+        saving: false,
+        saved: true,
+        dirty: false,
+        error: '',
+      });
+
+      await fetchRegistros.current(
+        fecha
+      );
 
       setTimeout(() => {
         setFilas((prev) =>
-          prev.map((f) => (f.usuario.id === usuarioId ? { ...f, saved: false } : f))
+          prev.map((f) =>
+            f.usuario.id ===
+            usuarioId
+              ? {
+                  ...f,
+                  saved: false,
+                }
+              : f
+          )
         );
       }, 1800);
-
-      setFilas((prev) =>
-        prev.map((f) =>
-          f.usuario.id === usuarioId
-            ? { ...f, saving: false, saved: true, dirty: false, error: '' }
-            : f
-        )
+    } catch (error) {
+      console.error(
+        'Error guardando jornada:',
+        error
       );
-    } catch {
-      actualizarFila(usuarioId, { saving: false, error: 'Error de red' });
+
+      actualizarFila(usuarioId, {
+        saving: false,
+        error: 'Error de red',
+      });
     }
   }
 
   const resumen = useMemo(() => {
     return {
-      presentes: filas.filter((f) => f.registro?.estado === 'presente').length,
-      ausentes: filas.filter((f) => f.registro?.estado === 'ausente').length,
-      justificados: filas.filter((f) => f.registro?.estado === 'justificado').length,
-      totalMinutos: filas.reduce((acc, f) => acc + (f.registro?.minutos_trabajados ?? 0), 0),
-      sinGuardar: filas.filter((f) => f.dirty).length,
+      presentes: filas.filter(
+        (f) =>
+          f.registro?.estado ===
+          'presente'
+      ).length,
+
+      ausentes: filas.filter(
+        (f) =>
+          f.registro?.estado ===
+          'ausente'
+      ).length,
+
+      justificados: filas.filter(
+        (f) =>
+          f.registro?.estado ===
+          'justificado'
+      ).length,
+
+      totalMinutos: filas.reduce(
+        (acc, f) =>
+          acc +
+          (f.registro
+            ?.minutos_trabajados ??
+            0),
+        0
+      ),
+
+      sinGuardar: filas.filter(
+        (f) => f.dirty
+      ).length,
     };
   }, [filas]);
 
-  const usuariosEnTabla = useMemo(
-    () => new Set(filas.map((f) => f.usuario.id)),
-    [filas]
-  );
+  const usuariosEnTabla =
+    useMemo(
+      () =>
+        new Set(
+          filas.map(
+            (f) =>
+              f.usuario.id
+          )
+        ),
+      [filas]
+    );
 
-  const fechaFormateada = new Date(`${fecha}T00:00:00`).toLocaleDateString('es-ES', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
+  const fechaFormateada =
+    new Date(
+      `${fecha}T00:00:00`
+    ).toLocaleDateString(
+      'es-ES',
+      {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      }
+    );
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 px-0 sm:space-y-5">
@@ -1117,6 +1937,7 @@ export default function JornadaPage() {
           <h1 className="text-xl font-bold tracking-tight text-white sm:text-2xl">
             Registro de Jornada
           </h1>
+
           <p className="mt-0.5 text-sm capitalize text-slate-400">
             {fechaFormateada}
           </p>
@@ -1127,19 +1948,38 @@ export default function JornadaPage() {
             <input
               type="date"
               value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
+              onChange={(e) =>
+                setFecha(e.target.value)
+              }
               className="w-full cursor-pointer rounded-xl border border-white/10 bg-slate-800/80 py-2 pl-9 pr-3 text-sm text-white transition-all focus:border-cyan-500/40 focus:outline-none sm:w-[190px]"
             />
-            <svg className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+
+            <svg
+              className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
             </svg>
           </div>
 
           {!loadingUsuarios && (
             <BuscadorUsuarios
-              todosUsuarios={todosUsuarios}
-              usuariosEnTabla={usuariosEnTabla}
-              onAgregar={agregarUsuario}
+              todosUsuarios={
+                todosUsuarios
+              }
+              usuariosEnTabla={
+                usuariosEnTabla
+              }
+              onAgregar={
+                agregarUsuario
+              }
             />
           )}
         </div>
@@ -1147,32 +1987,104 @@ export default function JornadaPage() {
 
       {errorGlobal && (
         <div className="flex items-start gap-2 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          <svg
+            className="mt-0.5 h-4 w-4 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+            />
           </svg>
-          <span>{errorGlobal}</span>
+
+          <span>
+            {errorGlobal}
+          </span>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'Presentes', value: resumen.presentes, color: 'text-emerald-400', bg: 'bg-emerald-500/8', border: 'border-emerald-500/20' },
-          { label: 'Ausentes', value: resumen.ausentes, color: 'text-red-400', bg: 'bg-red-500/8', border: 'border-red-500/20' },
-          { label: 'Justificados', value: resumen.justificados, color: 'text-amber-400', bg: 'bg-amber-500/8', border: 'border-amber-500/20' },
-          { label: 'Horas registradas', value: minutosAHoras(resumen.totalMinutos), color: 'text-cyan-400', bg: 'bg-cyan-500/8', border: 'border-cyan-500/20' },
-        ].map(({ label, value, color, bg, border }) => (
-          <div key={label} className={`rounded-2xl border px-4 py-3 ${bg} ${border}`}>
-            <p className="mb-0.5 text-xs text-slate-500">{label}</p>
-            <p className={`break-words text-2xl font-bold tabular-nums ${color}`}>{value}</p>
-          </div>
-        ))}
+          {
+            label: 'Presentes',
+            value:
+              resumen.presentes,
+            color:
+              'text-emerald-400',
+            bg: 'bg-emerald-500/8',
+            border:
+              'border-emerald-500/20',
+          },
+          {
+            label: 'Ausentes',
+            value:
+              resumen.ausentes,
+            color: 'text-red-400',
+            bg: 'bg-red-500/8',
+            border:
+              'border-red-500/20',
+          },
+          {
+            label: 'Justificados',
+            value:
+              resumen.justificados,
+            color:
+              'text-amber-400',
+            bg: 'bg-amber-500/8',
+            border:
+              'border-amber-500/20',
+          },
+          {
+            label:
+              'Horas registradas',
+            value: minutosAHoras(
+              resumen.totalMinutos
+            ),
+            color:
+              'text-cyan-400',
+            bg: 'bg-cyan-500/8',
+            border:
+              'border-cyan-500/20',
+          },
+        ].map(
+          ({
+            label,
+            value,
+            color,
+            bg,
+            border,
+          }) => (
+            <div
+              key={label}
+              className={`rounded-2xl border px-4 py-3 ${bg} ${border}`}
+            >
+              <p className="mb-0.5 text-xs text-slate-500">
+                {label}
+              </p>
+
+              <p
+                className={`break-words text-2xl font-bold tabular-nums ${color}`}
+              >
+                {value}
+              </p>
+            </div>
+          )
+        )}
       </div>
 
       <div className="overflow-visible rounded-3xl border border-white/8 bg-slate-800/50">
         <div className="flex flex-col gap-3 border-b border-white/8 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="h-5 w-1 rounded-full bg-gradient-to-b from-cyan-400 to-blue-500" />
-            <h2 className="truncate text-base font-semibold text-white">Usuarios a supervisar</h2>
+
+            <h2 className="truncate text-base font-semibold text-white">
+              Usuarios a supervisar
+            </h2>
+
             {filas.length > 0 && (
               <span className="rounded-full border border-white/8 bg-slate-700/60 px-2 py-0.5 text-xs text-slate-400">
                 {filas.length}
@@ -1184,16 +2096,26 @@ export default function JornadaPage() {
             {guardandoAsignacion && (
               <div className="flex items-center gap-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1">
                 <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+
                 <span className="text-xs font-medium text-cyan-400">
                   Actualizando supervisados…
                 </span>
               </div>
             )}
-            {resumen.sinGuardar > 0 && (
+
+            {resumen.sinGuardar >
+              0 && (
               <div className="flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1">
                 <div className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+
                 <span className="text-xs font-medium text-amber-400">
-                  {resumen.sinGuardar} cambio{resumen.sinGuardar > 1 ? 's' : ''} sin guardar
+                  {resumen.sinGuardar}{' '}
+                  cambio
+                  {resumen.sinGuardar >
+                  1
+                    ? 's'
+                    : ''}{' '}
+                  sin guardar
                 </span>
               </div>
             )}
@@ -1210,11 +2132,25 @@ export default function JornadaPage() {
         ) : filas.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/6 bg-slate-700/30">
-              <svg className="h-7 w-7 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              <svg
+                className="h-7 w-7 text-slate-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"
+                />
               </svg>
             </div>
-            <p className="font-medium text-slate-400">Sin usuarios en la tabla</p>
+
+            <p className="font-medium text-slate-400">
+              Sin usuarios en la tabla
+            </p>
+
             <p className="mt-1 max-w-md text-sm text-slate-600">
               Busca usuarios para supervisar y registrarlos en la seleccionado_en
             </p>
@@ -1225,7 +2161,15 @@ export default function JornadaPage() {
               <table className="min-w-[980px] w-full">
                 <thead>
                   <tr className="border-b border-white/5">
-                    {['Usuario', 'Estado', 'Hora entrada', 'Hora salida', 'Motivo', 'Tiempo', 'Acción'].map((h) => (
+                    {[
+                      'Usuario',
+                      'Estado',
+                      'Hora entrada',
+                      'Hora salida',
+                      'Motivo',
+                      'Tiempo',
+                      'Acción',
+                    ].map((h) => (
                       <th
                         key={h}
                         className="px-4 py-3 text-left text-[10px] font-medium uppercase tracking-widest text-slate-600"
@@ -1235,39 +2179,102 @@ export default function JornadaPage() {
                     ))}
                   </tr>
                 </thead>
+
                 <tbody>
-                  {filas.map((fila) => (
-                    <FilaRegistro
-                      key={fila.usuario.id}
-                      fila={fila}
-                      onChange={(campos) => actualizarFila(fila.usuario.id, campos)}
-                      onGuardar={() => guardarFila(fila.usuario.id)}
-                      onQuitar={() => quitarFila(fila.usuario.id)}
-                    />
-                  ))}
+                  {filas.map(
+                    (fila) => (
+                      <FilaRegistro
+                        key={
+                          fila
+                            .usuario.id
+                        }
+                        fila={fila}
+                        onChange={(
+                          campos
+                        ) =>
+                          actualizarFila(
+                            fila
+                              .usuario
+                              .id,
+                            campos
+                          )
+                        }
+                        onGuardar={() =>
+                          guardarFila(
+                            fila
+                              .usuario
+                              .id
+                          )
+                        }
+                        onQuitar={() =>
+                          quitarFila(
+                            fila
+                              .usuario
+                              .id
+                          )
+                        }
+                      />
+                    )
+                  )}
                 </tbody>
               </table>
             </div>
 
             <div className="space-y-3 p-4 md:hidden">
-              {filas.map((fila) => (
-                <FilaRegistroMobile
-                  key={fila.usuario.id}
-                  fila={fila}
-                  onChange={(campos) => actualizarFila(fila.usuario.id, campos)}
-                  onGuardar={() => guardarFila(fila.usuario.id)}
-                  onQuitar={() => quitarFila(fila.usuario.id)}
-                />
-              ))}
+              {filas.map(
+                (fila) => (
+                  <FilaRegistroMobile
+                    key={
+                      fila.usuario.id
+                    }
+                    fila={fila}
+                    onChange={(
+                      campos
+                    ) =>
+                      actualizarFila(
+                        fila
+                          .usuario
+                          .id,
+                        campos
+                      )
+                    }
+                    onGuardar={() =>
+                      guardarFila(
+                        fila
+                          .usuario
+                          .id
+                      )
+                    }
+                    onQuitar={() =>
+                      quitarFila(
+                        fila
+                          .usuario
+                          .id
+                      )
+                    }
+                  />
+                )
+              )}
             </div>
           </>
         )}
 
         {filas.length > 0 && (
           <div className="flex items-start gap-2 border-t border-white/5 px-4 py-3 sm:px-5">
-            <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
+
             <p className="text-xs leading-relaxed text-slate-600">
               Puedes guardar primero la entrada, luego volver a guardar la salida, después corregir cualquier hora sin duplicar registros, y usar justificado también con horas si aplica.
             </p>

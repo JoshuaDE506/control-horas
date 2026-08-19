@@ -1,4 +1,4 @@
-//app/verify-code/page.tsx
+// app/verify-code/page.tsx
 'use client';
 
 import { useState, FormEvent, useEffect } from 'react';
@@ -24,41 +24,89 @@ export default function VerifyCodePage() {
       return;
     }
 
-    setEmail(savedEmail);
+    const normalizedEmail = savedEmail.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      sessionStorage.removeItem('resetEmail');
+      sessionStorage.removeItem('resetUser');
+
+      router.replace('/forgot-password');
+      return;
+    }
+
+    setEmail(normalizedEmail);
     setLoadingEmail(false);
   }, [router]);
 
   const handleCodeSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    if (loading || resending) {
+      return;
+    }
+
     setError('');
     setSuccess('');
+
+    const normalizedCode = code.trim();
+
+    if (!email) {
+      setError('La sesión de recuperación no es válida.');
+      return;
+    }
+
+    if (!/^\d{6}$/.test(normalizedCode)) {
+      setError('Debes ingresar un código válido de 6 dígitos.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await fetch('/api/auth/verify-code', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          email,
+          code: normalizedCode,
+        }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (!response.ok || !data.ok) {
-        setError(data.error || 'Código inválido o expirado');
+      if (!response.ok || data?.ok !== true) {
+        setError(
+          typeof data?.error === 'string'
+            ? data.error
+            : typeof data?.message === 'string'
+            ? data.message
+            : 'Código inválido o expirado'
+        );
+
         return;
       }
+
+      const resetData =
+        data?.data && typeof data.data === 'object'
+          ? data.data
+          : {};
 
       sessionStorage.setItem(
         'resetUser',
         JSON.stringify({
-          ...(data.data ?? {}),
-          code,
+          ...resetData,
+          email,
+          code: normalizedCode,
         })
       );
 
       router.push('/reset-password');
     } catch (err) {
       console.error('Error de red al verificar código:', err);
+
       setError('Error de conexión con el servidor');
     } finally {
       setLoading(false);
@@ -66,30 +114,58 @@ export default function VerifyCodePage() {
   };
 
   const handleResendCode = async () => {
+    if (loading || resending) {
+      return;
+    }
+
     setError('');
     setSuccess('');
+
+    if (!email) {
+      setError('La sesión de recuperación no es válida.');
+      return;
+    }
+
     setResending(true);
 
     try {
       const response = await fetch('/api/auth/forgot-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          email,
+        }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (!response.ok || !data.ok) {
-        setError(data.error || 'Error al reenviar el código');
+      if (!response.ok || data?.ok !== true) {
+        setError(
+          typeof data?.error === 'string'
+            ? data.error
+            : typeof data?.message === 'string'
+            ? data.message
+            : 'Error al reenviar el código'
+        );
+
         return;
       }
 
+      sessionStorage.removeItem('resetUser');
+
       setSuccess(
-        data.message || 'Si el correo existe, se generó un nuevo código.'
+        typeof data?.message === 'string'
+          ? data.message
+          : 'Si el correo existe, se generó un nuevo código.'
       );
+
       setCode('');
     } catch (err) {
       console.error('Error al reenviar código:', err);
+
       setError('Error de conexión con el servidor');
     } finally {
       setResending(false);
@@ -350,6 +426,7 @@ export default function VerifyCodePage() {
                 <p className="text-sm text-violet-200/80 mb-3">
                   ¿No recibiste el código?
                 </p>
+
                 <button
                   type="button"
                   onClick={handleResendCode}
@@ -375,6 +452,7 @@ export default function VerifyCodePage() {
                       d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
+
                   <p className="leading-relaxed">
                     Este código expirará en 15 minutos por razones de seguridad.
                   </p>

@@ -1,4 +1,4 @@
-//app/reset-password/page.tsx
+// app/reset-password/page.tsx
 'use client';
 
 import { useState, FormEvent, useEffect } from 'react';
@@ -12,7 +12,7 @@ interface ResetUser {
 }
 
 function isValidPassword(password: string): boolean {
-  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=\[\]{};':"\\|,.<>\/?]).{8,}$/.test(
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_\-+=\[\]{};':"\\|,.<>/?]).{8,}$/.test(
     password
   );
 }
@@ -48,19 +48,23 @@ export default function ResetPasswordPage() {
 
       if (!user.email || !user.code) {
         sessionStorage.removeItem('resetUser');
+        sessionStorage.removeItem('resetEmail');
         router.replace('/forgot-password');
         return;
       }
 
       setUserInfo({
-        email: user.email || '',
-        nombre: user.nombre || '',
-        apellido: user.apellido || '',
-        code: user.code || '',
+        email: String(user.email).trim().toLowerCase(),
+        nombre: String(user.nombre ?? '').trim(),
+        apellido: String(user.apellido ?? '').trim(),
+        code: String(user.code).trim(),
       });
     } catch (error) {
       console.error('Error leyendo resetUser:', error);
+
       sessionStorage.removeItem('resetUser');
+      sessionStorage.removeItem('resetEmail');
+
       router.replace('/forgot-password');
       return;
     } finally {
@@ -71,6 +75,8 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (loading) return;
 
     if (!userInfo.email || !userInfo.code) {
       setError('Sesión de recuperación inválida. Intenta de nuevo.');
@@ -94,7 +100,10 @@ export default function ResetPasswordPage() {
     try {
       const response = await fetch('/api/auth/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
         body: JSON.stringify({
           email: userInfo.email,
           code: userInfo.code,
@@ -102,17 +111,22 @@ export default function ResetPasswordPage() {
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
-      if (!response.ok || !data.ok) {
-        setError(data.error || 'Error al cambiar la contraseña');
+      if (!response.ok || data?.ok !== true) {
+        const message =
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Error al cambiar la contraseña';
+
+        setError(message);
         return;
       }
 
       sessionStorage.removeItem('resetUser');
       sessionStorage.removeItem('resetEmail');
 
-      router.push('/login?passwordChanged=true');
+      router.replace('/login?passwordChanged=true');
     } catch (err) {
       console.error('Error:', err);
       setError('Error de conexión');
@@ -127,12 +141,15 @@ export default function ResetPasswordPage() {
     }
 
     let strength = 0;
+
     if (newPassword.length >= 8) strength++;
     if (newPassword.length >= 12) strength++;
     if (/[A-Z]/.test(newPassword)) strength++;
     if (/[a-z]/.test(newPassword)) strength++;
     if (/\d/.test(newPassword)) strength++;
-    if (/[!@#$%^&*()_\-+=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) strength++;
+    if (/[!@#$%^&*()_\-+=\[\]{};':"\\|,.<>/?]/.test(newPassword)) {
+      strength++;
+    }
 
     if (strength <= 2) {
       return { strength: 33, text: 'Débil', color: 'bg-red-500' };
@@ -361,6 +378,7 @@ export default function ResetPasswordPage() {
                   >
                     Nueva Contraseña
                   </label>
+
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none transition-all duration-300 group-hover:scale-110">
                       <svg
@@ -433,7 +451,7 @@ export default function ResetPasswordPage() {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268-2.943 9.542-7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                           />
                         </svg>
                       )}
@@ -458,10 +476,13 @@ export default function ResetPasswordPage() {
                           {passwordStrength.text}
                         </span>
                       </div>
+
                       <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                         <div
                           className={`h-full ${passwordStrength.color} transition-all duration-500 rounded-full`}
-                          style={{ width: `${passwordStrength.strength}%` }}
+                          style={{
+                            width: `${passwordStrength.strength}%`,
+                          }}
                         ></div>
                       </div>
                     </div>
@@ -479,6 +500,7 @@ export default function ResetPasswordPage() {
                   >
                     Confirmar Nueva Contraseña
                   </label>
+
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none transition-all duration-300 group-hover:scale-110">
                       <svg
@@ -553,7 +575,7 @@ export default function ResetPasswordPage() {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268-2.943 9.542-7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                           />
                         </svg>
                       )}
@@ -577,6 +599,7 @@ export default function ResetPasswordPage() {
                               d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                             />
                           </svg>
+
                           <span className="text-sm text-green-400 font-medium">
                             Las contraseñas coinciden
                           </span>
@@ -596,6 +619,7 @@ export default function ResetPasswordPage() {
                               d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
                             />
                           </svg>
+
                           <span className="text-sm text-red-400 font-medium">
                             Las contraseñas no coinciden
                           </span>
@@ -645,6 +669,7 @@ export default function ResetPasswordPage() {
                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                           ></path>
                         </svg>
+
                         <span>Actualizando contraseña...</span>
                       </>
                     ) : (
@@ -662,6 +687,7 @@ export default function ResetPasswordPage() {
                             d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                           />
                         </svg>
+
                         <span>Cambiar Contraseña</span>
                       </>
                     )}
@@ -684,10 +710,12 @@ export default function ResetPasswordPage() {
                       d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
                     />
                   </svg>
+
                   <div className="leading-relaxed">
                     <p className="font-semibold text-violet-200 mb-1">
                       Consejos de seguridad:
                     </p>
+
                     <ul className="list-disc list-inside space-y-1 text-xs">
                       <li>No uses contraseñas anteriores</li>
                       <li>Evita información personal (nombres, fechas)</li>

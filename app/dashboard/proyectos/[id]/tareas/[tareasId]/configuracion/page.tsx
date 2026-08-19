@@ -1,4 +1,4 @@
-//app/dashboard/proyectos/[id]/tareas/[tareasId]/configuracion/page.tsx
+// app/dashboard/proyectos/[id]/tareas/[tareasId]/configuracion/page.tsx
 'use client';
 
 import type { ReactNode } from 'react';
@@ -8,7 +8,7 @@ import ConfirmModal from '@/components/ConfirmModal';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
-type Prioridad = 'baja' | 'media' | 'alta';
+type Prioridad = 'baja' | 'media' | 'alta' | 'critica';
 type EstadoTarea = 'pendiente' | 'en_progreso' | 'revision' | 'completada';
 
 interface TareaForm {
@@ -58,47 +58,69 @@ const inputCls =
 // ─── Mapeos API ⇄ UI ───────────────────────────────────────────────────────────
 
 function estadoApiToUi(apiEstado: string | null | undefined): EstadoTarea {
-  const v = (apiEstado ?? '').toLowerCase();
+  const v = String(apiEstado ?? '')
+    .trim()
+    .toLowerCase();
 
-  if (v === 'todo') return 'pendiente';
-  if (v === 'in-progress' || v === 'in_progress') return 'en_progreso';
-  if (v === 'completed') return 'completada';
+  if (v === 'todo') {
+    return 'pendiente';
+  }
+
+  if (
+    v === 'in-progress' ||
+    v === 'in_progress' ||
+    v === 'en_progreso' ||
+    v === 'en progreso'
+  ) {
+    return 'en_progreso';
+  }
+
+  if (
+    v === 'review' ||
+    v === 'revision' ||
+    v === 'revisión'
+  ) {
+    return 'revision';
+  }
+
+  if (
+    v === 'completed' ||
+    v === 'completada' ||
+    v === 'completado'
+  ) {
+    return 'completada';
+  }
 
   return 'pendiente';
 }
 
-function estadoUiToApi(uiEstado: EstadoTarea): 'todo' | 'in-progress' | 'completed' {
-  switch (uiEstado) {
-    case 'pendiente':
-      return 'todo';
-    case 'en_progreso':
-    case 'revision':
-      return 'in-progress';
-    case 'completada':
-      return 'completed';
-    default:
-      return 'todo';
-  }
-}
-
 function prioridadApiToUi(apiPrioridad: string | null | undefined): Prioridad {
-  const v = (apiPrioridad ?? '').toLowerCase();
+  const v = String(apiPrioridad ?? '')
+    .trim()
+    .toLowerCase();
 
-  if (v === 'baja') return 'baja';
-  if (v === 'alta') return 'alta';
+  if (v === 'baja') {
+    return 'baja';
+  }
+
+  if (v === 'alta') {
+    return 'alta';
+  }
+
+  if (
+    v === 'critica' ||
+    v === 'crítica'
+  ) {
+    return 'critica';
+  }
+
   return 'media';
 }
 
-function prioridadUiToApi(uiPrioridad: Prioridad): 'baja' | 'media' | 'alta' {
-  switch (uiPrioridad) {
-    case 'baja':
-      return 'baja';
-    case 'alta':
-      return 'alta';
-    case 'media':
-    default:
-      return 'media';
-  }
+function prioridadUiToApi(
+  uiPrioridad: Prioridad
+): 'baja' | 'media' | 'alta' | 'critica' {
+  return uiPrioridad;
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -132,17 +154,33 @@ function Section({
               : 'bg-gradient-to-b from-purple-500 to-blue-500'
           }`}
         />
+
         <div className="flex items-start gap-2.5 min-w-0">
-          <span className={`shrink-0 ${danger ? 'text-red-400' : 'text-gray-400'}`}>{icon}</span>
+          <span
+            className={`shrink-0 ${
+              danger ? 'text-red-400' : 'text-gray-400'
+            }`}
+          >
+            {icon}
+          </span>
+
           <div className="min-w-0">
             <h2 className="text-base sm:text-lg font-bold text-white leading-tight break-words">
               {title}
             </h2>
-            {subtitle && <p className="text-xs text-gray-500 mt-0.5 break-words">{subtitle}</p>}
+
+            {subtitle && (
+              <p className="text-xs text-gray-500 mt-0.5 break-words">
+                {subtitle}
+              </p>
+            )}
           </div>
         </div>
       </div>
-      <div className="space-y-4">{children}</div>
+
+      <div className="space-y-4">
+        {children}
+      </div>
     </div>
   );
 }
@@ -160,9 +198,17 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-300 mb-2">{label}</label>
+      <label className="block text-sm font-medium text-gray-300 mb-2">
+        {label}
+      </label>
+
       {children}
-      {hint && <p className={`mt-2 text-xs ${hintColor}`}>{hint}</p>}
+
+      {hint && (
+        <p className={`mt-2 text-xs ${hintColor}`}>
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -180,6 +226,7 @@ const Ic = {
       />
     </svg>
   ),
+
   edit: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
@@ -190,6 +237,7 @@ const Ic = {
       />
     </svg>
   ),
+
   flag: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
@@ -200,12 +248,19 @@ const Ic = {
       />
     </svg>
   ),
+
   clock: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="10" strokeWidth={2} />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6l4 2" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 6v6l4 2"
+      />
     </svg>
   ),
+
   shield: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
@@ -216,6 +271,7 @@ const Ic = {
       />
     </svg>
   ),
+
   lock: () => (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
@@ -226,6 +282,7 @@ const Ic = {
       />
     </svg>
   ),
+
   check: () => (
     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
       <path
@@ -235,6 +292,7 @@ const Ic = {
       />
     </svg>
   ),
+
   warn: () => (
     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
       <path
@@ -244,6 +302,7 @@ const Ic = {
       />
     </svg>
   ),
+
   trash: () => (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
@@ -262,12 +321,16 @@ function estadoColor(v: EstadoTarea) {
   switch (v) {
     case 'pendiente':
       return 'bg-slate-500/20 text-slate-300 border-slate-500/40';
+
     case 'en_progreso':
       return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+
     case 'revision':
       return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30';
+
     case 'completada':
       return 'bg-green-500/10 text-green-400 border-green-500/30';
+
     default:
       return 'bg-slate-500/20 text-slate-300 border-slate-500/40';
   }
@@ -277,10 +340,16 @@ function prioridadColor(v: Prioridad) {
   switch (v) {
     case 'baja':
       return 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+
     case 'media':
       return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30';
+
     case 'alta':
       return 'bg-orange-500/10 text-orange-400 border-orange-500/30';
+
+    case 'critica':
+      return 'bg-red-500/10 text-red-400 border-red-500/30';
+
     default:
       return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30';
   }
@@ -290,13 +359,25 @@ function prioridadColor(v: Prioridad) {
 
 export default function TareaConfiguracionesPage() {
   const router = useRouter();
-  const params = useParams() as { id?: string | string[]; tareasId?: string | string[] };
 
-  const proyectoId = Array.isArray(params?.id) ? params.id[0] : params?.id;
-  const tareaId = Array.isArray(params?.tareasId) ? params.tareasId[0] : params?.tareasId;
+  const params = useParams() as {
+    id?: string | string[];
+    tareasId?: string | string[];
+  };
+
+  const proyectoId = Array.isArray(params?.id)
+    ? params.id[0]
+    : params?.id;
+
+  const tareaId = Array.isArray(params?.tareasId)
+    ? params.tareasId[0]
+    : params?.tareasId;
 
   const [form, setForm] = useState<TareaForm>(DEFAULT_FORM);
-  const [initialForm, setInitialForm] = useState<TareaForm | null>(null);
+
+  const [initialForm, setInitialForm] =
+    useState<TareaForm | null>(null);
+
   const [isDirty, setIsDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -312,27 +393,79 @@ export default function TareaConfiguracionesPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const readOnly = !puedeEditar;
-  const estadoBloqueado = true;
 
-  const update = useCallback(<K extends keyof TareaForm>(key: K, value: TareaForm[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setIsDirty(true);
-    setSaved(false);
-  }, []);
+  const update = useCallback(
+    <K extends keyof TareaForm>(
+      key: K,
+      value: TareaForm[K]
+    ) => {
+      if (readOnly) return;
+
+      setForm((prev) => ({
+        ...prev,
+        [key]: value,
+      }));
+
+      setIsDirty(true);
+      setSaved(false);
+    },
+    [readOnly]
+  );
 
   const tituloLeft = 120 - form.titulo.length;
 
-  const estadoOpts: { value: EstadoTarea; label: string; dot: string }[] = [
-    { value: 'pendiente', label: 'Pendiente', dot: '#94a3b8' },
-    { value: 'en_progreso', label: 'En progreso', dot: '#60a5fa' },
-    { value: 'revision', label: 'En revisión', dot: '#facc15' },
-    { value: 'completada', label: 'Completada', dot: '#4ade80' },
+  const estadoOpts: {
+    value: EstadoTarea;
+    label: string;
+    dot: string;
+  }[] = [
+    {
+      value: 'pendiente',
+      label: 'Pendiente',
+      dot: '#94a3b8',
+    },
+    {
+      value: 'en_progreso',
+      label: 'En progreso',
+      dot: '#60a5fa',
+    },
+    {
+      value: 'revision',
+      label: 'En revisión',
+      dot: '#facc15',
+    },
+    {
+      value: 'completada',
+      label: 'Completada',
+      dot: '#4ade80',
+    },
   ];
 
-  const prioridadOpts: { value: Prioridad; label: string; dot: string }[] = [
-    { value: 'baja', label: 'Baja', dot: '#60a5fa' },
-    { value: 'media', label: 'Media', dot: '#facc15' },
-    { value: 'alta', label: 'Alta', dot: '#fb923c' },
+  const prioridadOpts: {
+    value: Prioridad;
+    label: string;
+    dot: string;
+  }[] = [
+    {
+      value: 'baja',
+      label: 'Baja',
+      dot: '#60a5fa',
+    },
+    {
+      value: 'media',
+      label: 'Media',
+      dot: '#facc15',
+    },
+    {
+      value: 'alta',
+      label: 'Alta',
+      dot: '#fb923c',
+    },
+    {
+      value: 'critica',
+      label: 'Crítica',
+      dot: '#f87171',
+    },
   ];
 
   useEffect(() => {
@@ -349,41 +482,76 @@ export default function TareaConfiguracionesPage() {
 
         const tareaRes = await fetch(
           `/api/proyectos/${proyectoId}/tareas/${tareaId}/configuracion`,
-          { method: 'GET', cache: 'no-store', credentials: 'include' }
+          {
+            method: 'GET',
+            cache: 'no-store',
+            credentials: 'include',
+          }
         );
 
-        const tareaData: any = await tareaRes.json().catch(() => ({}));
+        const tareaData: any = await tareaRes
+          .json()
+          .catch(() => ({}));
 
-        if (!tareaRes.ok || !tareaData?.ok) {
+        if (!tareaRes.ok) {
           if (tareaRes.status === 403) {
             setPuedeEditar(false);
             setPuedeEliminar(false);
             setShowNoPermission(true);
           }
-          throw new Error(tareaData?.error || 'Error al cargar la tarea');
+
+          throw new Error(
+            typeof tareaData?.error === 'string'
+              ? tareaData.error
+              : 'Error al cargar la tarea'
+          );
         }
 
-        const t = (tareaData?.data?.tarea ?? tareaData?.tarea) as TareaApi | undefined;
-        if (!t) throw new Error('Tarea no encontrada');
+        const t = (
+          tareaData?.data?.tarea ??
+          tareaData?.tarea
+        ) as TareaApi | undefined;
 
-        const totalMin = t.tiempo_estimado_minutos ?? 0;
+        if (!t) {
+          throw new Error('Tarea no encontrada');
+        }
+
+        const totalMin =
+          Number(t.tiempo_estimado_minutos ?? 0) || 0;
+
         const horasPorDia: 8 | 12 = 8;
         const minutosPorDia = horasPorDia * 60;
-        const tiempoDias = Math.floor(totalMin / minutosPorDia);
-        const resto = totalMin % minutosPorDia;
-        const tiempoHoras = Math.floor(resto / 60);
-        const tiempoMinutos = resto % 60;
+
+        const tiempoDias = Math.floor(
+          totalMin / minutosPorDia
+        );
+
+        const resto =
+          totalMin % minutosPorDia;
+
+        const tiempoHoras = Math.floor(
+          resto / 60
+        );
+
+        const tiempoMinutos =
+          resto % 60;
 
         const mapped: TareaForm = {
-          titulo: t.titulo ?? '',
-          descripcion: t.descripcion ?? '',
+          titulo: String(t.titulo ?? ''),
+          descripcion: String(t.descripcion ?? ''),
           prioridad: prioridadApiToUi(t.prioridad),
           estado: estadoApiToUi(t.estado),
           tiempoDias,
           tiempoHoras,
           tiempoMinutos,
           horasPorDia,
-          maxParticipantes: t.max_participantes ?? DEFAULT_FORM.maxParticipantes,
+          maxParticipantes: Math.max(
+            1,
+            Number(
+              t.max_participantes ??
+                DEFAULT_FORM.maxParticipantes
+            ) || 1
+          ),
         };
 
         setForm(mapped);
@@ -391,10 +559,15 @@ export default function TareaConfiguracionesPage() {
         setIsDirty(false);
 
         const permisos: PermisosApi =
-          tareaData?.data?.permisos ?? tareaData?.permisos ?? {};
+          tareaData?.data?.permisos ??
+          tareaData?.permisos ??
+          {};
 
-        const canEdit = Boolean(permisos.puedeEditar);
-        const canDelete = Boolean(permisos.puedeEliminar);
+        const canEdit =
+          permisos.puedeEditar === true;
+
+        const canDelete =
+          permisos.puedeEliminar === true;
 
         setPuedeEditar(canEdit);
         setPuedeEliminar(canDelete);
@@ -402,41 +575,103 @@ export default function TareaConfiguracionesPage() {
         if (!canEdit) {
           setShowNoPermission(true);
         }
-      } catch (err: any) {
-        setError(err?.message || 'Error cargando configuración');
+      } catch (err) {
+        console.error(
+          'Error cargando configuración de tarea:',
+          err
+        );
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Error cargando configuración'
+        );
       } finally {
         setLoading(false);
       }
     };
 
-    load();
+    void load();
   }, [proyectoId, tareaId]);
 
   const handleSave = async () => {
-    if (!proyectoId || !tareaId || !puedeEditar) return;
-    if (!form.titulo.trim()) {
+    if (
+      !proyectoId ||
+      !tareaId ||
+      !puedeEditar ||
+      saving
+    ) {
+      return;
+    }
+
+    const titulo =
+      form.titulo.trim();
+
+    const descripcion =
+      form.descripcion.trim();
+
+    if (!titulo) {
       setError('El título es obligatorio');
       return;
     }
+
+    const dias = Math.max(
+      0,
+      Math.trunc(form.tiempoDias || 0)
+    );
+
+    const horas = Math.max(
+      0,
+      Math.trunc(form.tiempoHoras || 0)
+    );
+
+    const minutos = Math.max(
+      0,
+      Math.min(
+        59,
+        Math.trunc(form.tiempoMinutos || 0)
+      )
+    );
+
+    const horasPorDia =
+      form.horasPorDia === 12
+        ? 12
+        : 8;
+
+    const maxParticipantes = Math.max(
+      1,
+      Math.min(
+        50,
+        Math.trunc(form.maxParticipantes || 1)
+      )
+    );
+
+    const totalMinutos =
+      dias * horasPorDia * 60 +
+      horas * 60 +
+      minutos;
 
     setSaving(true);
     setError('');
 
     try {
-      const dias = Math.max(0, form.tiempoDias || 0);
-      const horas = Math.max(0, form.tiempoHoras || 0);
-      const minutos = Math.max(0, Math.min(59, form.tiempoMinutos || 0));
-      const horasPorDia = form.horasPorDia === 12 ? 12 : 8;
-
-      const totalMinutos = dias * horasPorDia * 60 + horas * 60 + minutos;
-
+      /*
+       * IMPORTANTE:
+       * El estado NO se envía a /configuracion.
+       * El estado se administra mediante el flujo operativo:
+       * seleccionar -> comenzar -> completar/revisión
+       * -> aprobar/rechazar.
+       */
       const payload = {
-        titulo: form.titulo,
-        descripcion: form.descripcion || null,
+        titulo,
+        descripcion: descripcion || null,
         prioridad: prioridadUiToApi(form.prioridad),
-        estado: estadoUiToApi(form.estado),
-        tiempo_estimado_minutos: totalMinutos > 0 ? totalMinutos : null,
-        max_participantes: form.maxParticipantes,
+        tiempo_estimado_minutos:
+          totalMinutos > 0
+            ? totalMinutos
+            : null,
+        max_participantes:
+          maxParticipantes,
       };
 
       const res = await fetch(
@@ -444,38 +679,93 @@ export default function TareaConfiguracionesPage() {
         {
           method: 'PUT',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify(payload),
         }
       );
 
-      const data: any = await res.json().catch(() => ({}));
+      const data: any = await res
+        .json()
+        .catch(() => ({}));
 
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || 'Error al guardar la configuración');
+      if (!res.ok) {
+        throw new Error(
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Error al guardar la configuración'
+        );
       }
 
-      const t = (data?.data?.tarea ?? data?.tarea) as TareaApi | undefined;
+      const t = (
+        data?.data?.tarea ??
+        data?.tarea
+      ) as TareaApi | undefined;
 
       if (t) {
-        const totalMin = t.tiempo_estimado_minutos ?? 0;
-        const horasPorDiaActual: 8 | 12 = form.horasPorDia;
-        const minutosPorDia = horasPorDiaActual * 60;
-        const tiempoDias = Math.floor(totalMin / minutosPorDia);
-        const resto = totalMin % minutosPorDia;
-        const tiempoHoras = Math.floor(resto / 60);
-        const tiempoMinutos = resto % 60;
+        const totalMin =
+          Number(t.tiempo_estimado_minutos ?? 0) || 0;
+
+        const horasPorDiaActual: 8 | 12 =
+          horasPorDia;
+
+        const minutosPorDia =
+          horasPorDiaActual * 60;
+
+        const tiempoDias = Math.floor(
+          totalMin / minutosPorDia
+        );
+
+        const resto =
+          totalMin % minutosPorDia;
+
+        const tiempoHoras = Math.floor(
+          resto / 60
+        );
+
+        const tiempoMinutos =
+          resto % 60;
 
         const mapped: TareaForm = {
-          titulo: t.titulo ?? '',
-          descripcion: t.descripcion ?? '',
+          titulo: String(t.titulo ?? ''),
+          descripcion: String(t.descripcion ?? ''),
           prioridad: prioridadApiToUi(t.prioridad),
+
+          // El estado devuelto por backend es la autoridad.
           estado: estadoApiToUi(t.estado),
+
           tiempoDias,
           tiempoHoras,
           tiempoMinutos,
           horasPorDia: horasPorDiaActual,
-          maxParticipantes: t.max_participantes ?? DEFAULT_FORM.maxParticipantes,
+
+          maxParticipantes: Math.max(
+            1,
+            Number(
+              t.max_participantes ??
+                maxParticipantes
+            ) || 1
+          ),
+        };
+
+        setForm(mapped);
+        setInitialForm(mapped);
+      } else {
+        /*
+         * Si el backend no devuelve la tarea completa,
+         * conservamos el estado actual y normalizamos
+         * únicamente los valores guardados.
+         */
+        const mapped: TareaForm = {
+          ...form,
+          titulo,
+          descripcion,
+          tiempoDias: dias,
+          tiempoHoras: horas,
+          tiempoMinutos: minutos,
+          horasPorDia,
+          maxParticipantes,
         };
 
         setForm(mapped);
@@ -484,9 +774,21 @@ export default function TareaConfiguracionesPage() {
 
       setIsDirty(false);
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (err: any) {
-      setError(err?.message || 'Error al guardar configuración');
+
+      setTimeout(() => {
+        setSaved(false);
+      }, 3000);
+    } catch (err) {
+      console.error(
+        'Error guardando configuración de tarea:',
+        err
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Error al guardar configuración'
+      );
     } finally {
       setSaving(false);
     }
@@ -494,6 +796,7 @@ export default function TareaConfiguracionesPage() {
 
   const handleDiscard = () => {
     if (!initialForm) return;
+
     setForm(initialForm);
     setIsDirty(false);
     setSaved(false);
@@ -501,7 +804,14 @@ export default function TareaConfiguracionesPage() {
   };
 
   const handleDelete = async () => {
-    if (!proyectoId || !tareaId || !puedeEliminar || deleting) return;
+    if (
+      !proyectoId ||
+      !tareaId ||
+      !puedeEliminar ||
+      deleting
+    ) {
+      return;
+    }
 
     setDeleting(true);
     setError('');
@@ -512,39 +822,76 @@ export default function TareaConfiguracionesPage() {
         {
           method: 'DELETE',
           credentials: 'include',
-          cache: 'no-store',
         }
       );
 
-      const data: any = await res.json().catch(() => ({}));
+      const data: any = await res
+        .json()
+        .catch(() => ({}));
 
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || 'Error al eliminar la tarea');
+      if (!res.ok) {
+        throw new Error(
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Error al eliminar la tarea'
+        );
       }
 
       setShowDeleteConfirm(false);
-      router.push(`/dashboard/proyectos/${proyectoId}/tareas`);
+
+      router.push(
+        `/dashboard/proyectos/${proyectoId}/tareas`
+      );
+
       router.refresh();
-    } catch (e: any) {
-      setError(e?.message || 'Error al eliminar la tarea');
+    } catch (e) {
+      console.error(
+        'Error eliminando tarea:',
+        e
+      );
+
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Error al eliminar la tarea'
+      );
     } finally {
       setDeleting(false);
     }
   };
 
   const totalPreviewMinutos =
-    Math.max(0, form.tiempoDias || 0) * (form.horasPorDia === 12 ? 12 : 8) * 60 +
-    Math.max(0, form.tiempoHoras || 0) * 60 +
-    Math.max(0, Math.min(59, form.tiempoMinutos || 0));
+    Math.max(
+      0,
+      Math.trunc(form.tiempoDias || 0)
+    ) *
+      (form.horasPorDia === 12 ? 12 : 8) *
+      60 +
+    Math.max(
+      0,
+      Math.trunc(form.tiempoHoras || 0)
+    ) *
+      60 +
+    Math.max(
+      0,
+      Math.min(
+        59,
+        Math.trunc(form.tiempoMinutos || 0)
+      )
+    );
 
-  const totalPreviewHoras = Math.floor(totalPreviewMinutos / 60);
-  const totalPreviewMinRest = totalPreviewMinutos % 60;
+  const totalPreviewHoras =
+    Math.floor(totalPreviewMinutos / 60);
+
+  const totalPreviewMinRest =
+    totalPreviewMinutos % 60;
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+
           <p className="text-sm text-gray-400 text-center">
             Cargando configuración de la tarea...
           </p>
@@ -558,21 +905,28 @@ export default function TareaConfiguracionesPage() {
       <div className="max-w-4xl mx-auto mb-6 sm:mb-8">
         <div className="relative overflow-hidden rounded-2xl bg-slate-900/40 backdrop-blur-sm border border-slate-700/50 p-4 sm:p-6 lg:p-8 shadow-xl">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-blue-500/5" />
+
           <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-start gap-3 min-w-0">
               <div className="w-1.5 h-8 bg-gradient-to-b from-purple-500 to-blue-500 rounded-full shrink-0 mt-1" />
+
               <div className="min-w-0">
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
                   Configuración de la tarea
                 </h1>
+
                 <p className="text-gray-400 mt-1 text-sm max-w-lg truncate">
                   <span className="text-purple-400 font-medium">
                     {form.titulo || 'Sin título'}
                   </span>
                 </p>
+
                 {tareaId && (
-                  <p className="text-xs text-gray-500 mt-0.5 break-all">ID de tarea: #{tareaId}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 break-all">
+                    ID de tarea: #{tareaId}
+                  </p>
                 )}
+
                 {readOnly && (
                   <span className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg border text-xs font-semibold bg-yellow-500/10 text-yellow-400 border-yellow-500/30">
                     <Ic.lock />
@@ -604,14 +958,21 @@ export default function TareaConfiguracionesPage() {
       {error && (
         <div className="max-w-4xl mx-auto mb-5">
           <div className="px-4 py-3 rounded-xl border border-red-500/40 bg-red-500/10 text-sm text-red-300 flex items-start gap-2">
-            <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <svg
+              className="w-4 h-4 flex-shrink-0 mt-0.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
               <path
                 fillRule="evenodd"
-                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.59C19.021 16.92 18.245 18 17.014 18H2.986c-1.23 0-2.007-1.08-1.247-2.31l6.518-11.59zM11 14a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.59C19.021 16.92 18.245 18 17.014 18H2.986c-1.23 0-2.007-1.08-1.247-2.31l6.518-11.59zM11 14a1 1 0 10-2 0 1 1 0 002 0zm-1-8a1 1 0 00-1-1V8a1 1 0 112 0v3a1 1 0 01-1 1z"
                 clipRule="evenodd"
               />
             </svg>
-            <span className="break-words">{error}</span>
+
+            <span className="break-words">
+              {error}
+            </span>
           </div>
         </div>
       )}
@@ -624,22 +985,45 @@ export default function TareaConfiguracionesPage() {
         >
           <Field
             label="Título de la tarea *"
-            hint={!readOnly ? `${tituloLeft} caracteres restantes` : undefined}
-            hintColor={tituloLeft < 20 ? 'text-yellow-400' : 'text-gray-500'}
+            hint={
+              !readOnly
+                ? `${tituloLeft} caracteres restantes`
+                : undefined
+            }
+            hintColor={
+              tituloLeft < 20
+                ? 'text-yellow-400'
+                : 'text-gray-500'
+            }
           >
             <input
               type="text"
               maxLength={120}
               value={form.titulo}
-              onChange={(e) => !readOnly && update('titulo', e.target.value)}
+              onChange={(e) =>
+                !readOnly &&
+                update(
+                  'titulo',
+                  e.target.value
+                )
+              }
               placeholder="Ej: Rediseño de pantalla de login"
               className={`${inputCls} ${
-                !form.titulo.trim() && !readOnly ? 'border-red-500/40' : ''
-              } ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                !form.titulo.trim() && !readOnly
+                  ? 'border-red-500/40'
+                  : ''
+              } ${
+                readOnly
+                  ? 'cursor-not-allowed opacity-70'
+                  : ''
+              }`}
               disabled={readOnly}
             />
+
             {!form.titulo.trim() && !readOnly && (
-              <p className="mt-1.5 text-xs text-red-400">El título es obligatorio</p>
+              <p className="mt-1.5 text-xs text-red-400">
+                El título es obligatorio
+              </p>
             )}
           </Field>
 
@@ -647,10 +1031,18 @@ export default function TareaConfiguracionesPage() {
             <textarea
               rows={4}
               value={form.descripcion}
-              onChange={(e) => !readOnly && update('descripcion', e.target.value)}
+              onChange={(e) =>
+                !readOnly &&
+                update(
+                  'descripcion',
+                  e.target.value
+                )
+              }
               placeholder="Describe la tarea en detalle..."
               className={`${inputCls} resize-none ${
-                readOnly ? 'cursor-not-allowed opacity-70' : ''
+                readOnly
+                  ? 'cursor-not-allowed opacity-70'
+                  : ''
               }`}
               disabled={readOnly}
             />
@@ -668,6 +1060,7 @@ export default function TareaConfiguracionesPage() {
                 <label className="block text-sm font-medium text-gray-300">
                   Estado actual de la tarea
                 </label>
+
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-600/50 bg-slate-800/60 text-[11px] text-slate-300 w-fit">
                   <Ic.lock />
                   Bloqueado
@@ -676,7 +1069,9 @@ export default function TareaConfiguracionesPage() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {estadoOpts.map((opt) => {
-                  const isActive = form.estado === opt.value;
+                  const isActive =
+                    form.estado === opt.value;
+
                   return (
                     <button
                       key={opt.value}
@@ -687,12 +1082,21 @@ export default function TareaConfiguracionesPage() {
                           isActive
                             ? estadoColor(opt.value)
                             : 'bg-slate-800/30 text-slate-500 border-slate-700/40'
-                        } ${isActive ? 'opacity-100' : 'opacity-60'}`}
+                        } ${
+                        isActive
+                          ? 'opacity-100'
+                          : 'opacity-60'
+                      }`}
                     >
                       <span
                         className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ background: isActive ? opt.dot : '#4b5563' }}
+                        style={{
+                          background: isActive
+                            ? opt.dot
+                            : '#4b5563',
+                        }}
                       />
+
                       {opt.label}
                     </button>
                   );
@@ -706,19 +1110,32 @@ export default function TareaConfiguracionesPage() {
             </div>
           </Section>
 
-          <Section title="Prioridad" subtitle="Nivel de urgencia" icon={<Ic.flag />}>
+          <Section
+            title="Prioridad"
+            subtitle="Nivel de urgencia"
+            icon={<Ic.flag />}
+          >
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-3">
                 Nivel de prioridad
               </label>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {prioridadOpts.map((opt) => {
-                  const isActive = form.prioridad === opt.value;
+                  const isActive =
+                    form.prioridad === opt.value;
+
                   return (
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => !readOnly && update('prioridad', opt.value)}
+                      onClick={() =>
+                        !readOnly &&
+                        update(
+                          'prioridad',
+                          opt.value
+                        )
+                      }
                       disabled={readOnly}
                       className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border
                         ${
@@ -726,12 +1143,21 @@ export default function TareaConfiguracionesPage() {
                             ? prioridadColor(opt.value)
                             : 'bg-slate-800/50 text-gray-400 hover:bg-slate-700/50 border-slate-700/50'
                         }
-                        ${readOnly ? 'opacity-60 cursor-not-allowed hover:bg-slate-800/50' : ''}`}
+                        ${
+                          readOnly
+                            ? 'opacity-60 cursor-not-allowed hover:bg-slate-800/50'
+                            : ''
+                        }`}
                     >
                       <span
                         className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ background: isActive ? opt.dot : '#4b5563' }}
+                        style={{
+                          background: isActive
+                            ? opt.dot
+                            : '#4b5563',
+                        }}
                       />
+
                       {opt.label}
                     </button>
                   );
@@ -747,61 +1173,142 @@ export default function TareaConfiguracionesPage() {
           icon={<Ic.clock />}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-5">
-            <Field label="Días" hint="Cantidad de días estimados.">
+            <Field
+              label="Días"
+              hint="Cantidad de días estimados."
+            >
               <input
                 type="number"
                 min={0}
                 max={999}
-                value={Number.isFinite(form.tiempoDias) ? form.tiempoDias : ''}
-                onChange={(e) =>
-                  !readOnly && update('tiempoDias', Math.max(0, Number(e.target.value) || 0))
+                value={
+                  Number.isFinite(form.tiempoDias)
+                    ? form.tiempoDias
+                    : ''
                 }
-                className={`${inputCls} ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                onChange={(e) =>
+                  !readOnly &&
+                  update(
+                    'tiempoDias',
+                    Math.max(
+                      0,
+                      Math.trunc(
+                        Number(e.target.value) || 0
+                      )
+                    )
+                  )
+                }
+                className={`${inputCls} ${
+                  readOnly
+                    ? 'cursor-not-allowed opacity-70'
+                    : ''
+                }`}
                 placeholder="0"
                 disabled={readOnly}
               />
             </Field>
 
-            <Field label="Horas por día" hint="Equivalencia para convertir días.">
+            <Field
+              label="Horas por día"
+              hint="Equivalencia para convertir días."
+            >
               <select
                 value={form.horasPorDia}
                 onChange={(e) =>
-                  !readOnly && update('horasPorDia', Number(e.target.value) === 12 ? 12 : 8)
+                  !readOnly &&
+                  update(
+                    'horasPorDia',
+                    Number(e.target.value) === 12
+                      ? 12
+                      : 8
+                  )
                 }
-                className={`${inputCls} ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                className={`${inputCls} ${
+                  readOnly
+                    ? 'cursor-not-allowed opacity-70'
+                    : ''
+                }`}
                 disabled={readOnly}
               >
-                <option value={8}>8 horas</option>
-                <option value={12}>12 horas</option>
+                <option value={8}>
+                  8 horas
+                </option>
+
+                <option value={12}>
+                  12 horas
+                </option>
               </select>
             </Field>
 
-            <Field label="Horas" hint="Horas adicionales fuera de los días.">
+            <Field
+              label="Horas"
+              hint="Horas adicionales fuera de los días."
+            >
               <input
                 type="number"
                 min={0}
                 max={999}
-                value={Number.isFinite(form.tiempoHoras) ? form.tiempoHoras : ''}
-                onChange={(e) =>
-                  !readOnly && update('tiempoHoras', Math.max(0, Number(e.target.value) || 0))
+                value={
+                  Number.isFinite(form.tiempoHoras)
+                    ? form.tiempoHoras
+                    : ''
                 }
-                className={`${inputCls} ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                onChange={(e) =>
+                  !readOnly &&
+                  update(
+                    'tiempoHoras',
+                    Math.max(
+                      0,
+                      Math.trunc(
+                        Number(e.target.value) || 0
+                      )
+                    )
+                  )
+                }
+                className={`${inputCls} ${
+                  readOnly
+                    ? 'cursor-not-allowed opacity-70'
+                    : ''
+                }`}
                 placeholder="0"
                 disabled={readOnly}
               />
             </Field>
 
-            <Field label="Minutos" hint="0 a 59 minutos adicionales.">
+            <Field
+              label="Minutos"
+              hint="0 a 59 minutos adicionales."
+            >
               <input
                 type="number"
                 min={0}
                 max={59}
-                value={Number.isFinite(form.tiempoMinutos) ? form.tiempoMinutos : ''}
+                value={
+                  Number.isFinite(form.tiempoMinutos)
+                    ? form.tiempoMinutos
+                    : ''
+                }
                 onChange={(e) => {
                   if (readOnly) return;
-                  update('tiempoMinutos', Math.max(0, Math.min(59, Number(e.target.value) || 0)));
+
+                  update(
+                    'tiempoMinutos',
+                    Math.max(
+                      0,
+                      Math.min(
+                        59,
+                        Math.trunc(
+                          Number(e.target.value) || 0
+                        )
+                      )
+                    )
+                  );
                 }}
-                className={`${inputCls} ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                className={`${inputCls} ${
+                  readOnly
+                    ? 'cursor-not-allowed opacity-70'
+                    : ''
+                }`}
                 placeholder="0"
                 disabled={readOnly}
               />
@@ -815,12 +1322,31 @@ export default function TareaConfiguracionesPage() {
                 type="number"
                 min={1}
                 max={50}
-                value={Number.isFinite(form.maxParticipantes) ? form.maxParticipantes : ''}
+                value={
+                  Number.isFinite(form.maxParticipantes)
+                    ? form.maxParticipantes
+                    : ''
+                }
                 onChange={(e) =>
                   !readOnly &&
-                  update('maxParticipantes', Math.max(1, Number(e.target.value) || 1))
+                  update(
+                    'maxParticipantes',
+                    Math.max(
+                      1,
+                      Math.min(
+                        50,
+                        Math.trunc(
+                          Number(e.target.value) || 1
+                        )
+                      )
+                    )
+                  )
                 }
-                className={`${inputCls} ${readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                className={`${inputCls} ${
+                  readOnly
+                    ? 'cursor-not-allowed opacity-70'
+                    : ''
+                }`}
                 placeholder="1"
                 disabled={readOnly}
               />
@@ -830,10 +1356,13 @@ export default function TareaConfiguracionesPage() {
           <div className="mt-4 rounded-xl border border-purple-500/20 bg-purple-500/5 px-4 py-3">
             <p className="text-xs text-slate-400">
               Total estimado:
+
               <span className="ml-2 font-semibold text-purple-300">
                 {totalPreviewMinutos <= 0
                   ? '0m'
-                  : `${totalPreviewHoras}h ${String(totalPreviewMinRest).padStart(2, '0')}m`}
+                  : `${totalPreviewHoras}h ${String(
+                      totalPreviewMinRest
+                    ).padStart(2, '0')}m`}
               </span>
             </p>
           </div>
@@ -848,7 +1377,10 @@ export default function TareaConfiguracionesPage() {
           >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 bg-red-950/20 border border-red-500/20 rounded-xl">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-white">Eliminar esta tarea</p>
+                <p className="text-sm font-semibold text-white">
+                  Eliminar esta tarea
+                </p>
+
                 <p className="text-xs text-gray-500 mt-0.5 break-words">
                   Se eliminará por completo la tarea del proyecto. Esta acción no se puede
                   deshacer.
@@ -857,7 +1389,9 @@ export default function TareaConfiguracionesPage() {
 
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(true)}
+                onClick={() =>
+                  setShowDeleteConfirm(true)
+                }
                 className="w-full sm:w-auto flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600/80 hover:bg-red-500 border border-red-500/50 text-white rounded-xl text-sm font-semibold transition-all"
               >
                 <Ic.trash />
@@ -870,12 +1404,17 @@ export default function TareaConfiguracionesPage() {
 
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 px-4 sm:px-6 lg:px-8 py-4 bg-slate-950/90 backdrop-blur-xl border-t border-slate-700/50 transition-transform duration-300 ease-out ${
-          isDirty && puedeEditar ? 'translate-y-0' : 'translate-y-full'
+          isDirty && puedeEditar
+            ? 'translate-y-0'
+            : 'translate-y-full'
         }`}
       >
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-sm text-gray-400 hidden sm:block">
-            Tienes cambios <span className="text-white font-medium">sin guardar</span>
+            Tienes cambios{' '}
+            <span className="text-white font-medium">
+              sin guardar
+            </span>
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 sm:ml-auto w-full sm:w-auto">
@@ -890,15 +1429,28 @@ export default function TareaConfiguracionesPage() {
             <button
               type="button"
               onClick={() => {
-                if (puedeEditar && !saving && isDirty) setShowSaveConfirm(true);
+                if (
+                  puedeEditar &&
+                  !saving &&
+                  isDirty
+                ) {
+                  setShowSaveConfirm(true);
+                }
               }}
-              disabled={saving || !form.titulo.trim() || !puedeEditar}
+              disabled={
+                saving ||
+                !form.titulo.trim() ||
+                !puedeEditar
+              }
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl text-sm font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.01] sm:hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               {saving && (
                 <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
               )}
-              {saving ? 'Guardando...' : 'Guardar cambios'}
+
+              {saving
+                ? 'Guardando...'
+                : 'Guardar cambios'}
             </button>
           </div>
         </div>
@@ -906,11 +1458,16 @@ export default function TareaConfiguracionesPage() {
 
       <div
         className={`fixed top-4 right-4 sm:top-6 sm:right-6 z-[200] flex items-center gap-2 bg-green-500/10 border border-green-500/30 text-green-400 text-sm font-medium px-4 sm:px-5 py-3 rounded-xl shadow-xl transition-all duration-300 max-w-[calc(100vw-2rem)] sm:max-w-sm ${
-          saved ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'
+          saved
+            ? 'opacity-100 translate-y-0'
+            : 'opacity-0 -translate-y-2 pointer-events-none'
         }`}
       >
         <Ic.check />
-        <span className="break-words">Tarea actualizada correctamente</span>
+
+        <span className="break-words">
+          Tarea actualizada correctamente
+        </span>
       </div>
 
       <ConfirmModal
@@ -925,9 +1482,11 @@ export default function TareaConfiguracionesPage() {
         isLoading={saving}
         onConfirm={() => {
           setShowSaveConfirm(false);
-          handleSave();
+          void handleSave();
         }}
-        onCancel={() => setShowSaveConfirm(false)}
+        onCancel={() =>
+          setShowSaveConfirm(false)
+        }
       />
 
       <ConfirmModal
@@ -939,7 +1498,9 @@ export default function TareaConfiguracionesPage() {
         confirmText="Entendido"
         cancelText="Cerrar"
         type="warning"
-        onConfirm={() => setShowNoPermission(false)}
+        onConfirm={() =>
+          setShowNoPermission(false)
+        }
         onCancel={() => router.back()}
       />
 
@@ -954,7 +1515,9 @@ export default function TareaConfiguracionesPage() {
         type="danger"
         isLoading={deleting}
         onConfirm={handleDelete}
-        onCancel={() => setShowDeleteConfirm(false)}
+        onCancel={() =>
+          setShowDeleteConfirm(false)
+        }
       />
     </div>
   );

@@ -1,21 +1,74 @@
 // app/api/proyectos/[id]/configuracion/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { getAuthenticatedUser } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
+/**
+ * =========================================================
+ * 📌 CONTEXTO DE PARÁMETROS
+ * =========================================================
+ */
 type ParamsContext = {
   params: Promise<{ id: string }>;
 };
 
-type PermisoApi = 'owner' | 'owner_admin' | 'all_members';
-type RolProyecto = 'owner' | 'admin' | 'miembro' | null;
-type EstadoProyecto = 'activo' | 'pausado' | 'completado' | 'cancelado';
-type VisibilidadProyecto = 'privado' | 'publico';
-type ModoAccesoProyecto = 'privado' | 'publico' | 'solicitud';
-type PrioridadProyecto = 'baja' | 'media' | 'alta' | 'critica';
+/**
+ * =========================================================
+ * 📌 TIPOS DEL PROYECTO
+ * =========================================================
+ */
 
+/**
+ * Permisos utilizados actualmente por el sistema.
+ *
+ * owner_admin:
+ * - owner
+ * - administradores del proyecto
+ *
+ * todos_miembros:
+ * - owner
+ * - administradores
+ * - miembros
+ */
+type PermisoApi =
+  | 'owner_admin'
+  | 'todos_miembros';
+
+type RolProyecto =
+  | 'owner'
+  | 'admin'
+  | 'miembro'
+  | null;
+
+type EstadoProyecto =
+  | 'activo'
+  | 'pausado'
+  | 'completado'
+  | 'cancelado';
+
+type VisibilidadProyecto =
+  | 'privado'
+  | 'publico';
+
+type ModoAccesoProyecto =
+  | 'privado'
+  | 'publico'
+  | 'solicitud';
+
+type PrioridadProyecto =
+  | 'baja'
+  | 'media'
+  | 'alta'
+  | 'critica';
+
+/**
+ * =========================================================
+ * 📁 ESTRUCTURA DEL PROYECTO EN BD
+ * =========================================================
+ */
 type ProyectoRow = {
   id: number;
   nombre: string | null;
@@ -32,6 +85,9 @@ type ProyectoRow = {
   creador_id?: string | null;
 };
 
+/**
+ * Información retornada por PRAGMA foreign_key_list().
+ */
 type ForeignKeyRow = {
   id: number;
   seq: number;
@@ -46,6 +102,12 @@ type ForeignKeyRow = {
 type SqliteTableRow = {
   name: string;
 };
+
+/**
+ * =========================================================
+ * 📚 CATÁLOGOS PERMITIDOS
+ * =========================================================
+ */
 
 const ESTADOS_VALIDOS: EstadoProyecto[] = [
   'activo',
@@ -73,32 +135,68 @@ const PRIORIDADES_VALIDAS: PrioridadProyecto[] = [
 ];
 
 const PERMISOS_VALIDOS: PermisoApi[] = [
-  'owner',
   'owner_admin',
-  'all_members',
+  'todos_miembros',
 ];
 
-function normalizarPermiso(valor: any): PermisoApi {
-  const v = String(valor ?? '').toLowerCase().trim();
+/**
+ * =========================================================
+ * 🔐 NORMALIZAR PERMISOS
+ * =========================================================
+ *
+ * Convierte posibles valores antiguos de la base de datos
+ * al formato actualmente utilizado por el sistema.
+ *
+ * Valores anteriores compatibles:
+ *
+ * all_members → todos_miembros
+ * owner       → owner_admin
+ *
+ * "owner" se conserva únicamente como compatibilidad
+ * histórica. Los nuevos proyectos utilizan owner_admin.
+ */
+function normalizarPermiso(
+  valor: unknown
+): PermisoApi {
+  const v = String(valor ?? '')
+    .toLowerCase()
+    .trim();
 
+  /**
+   * Todos los miembros.
+   */
   if (
     [
+      'todos_miembros',
+      'all_members',
+      'todos los miembros',
+      'todos_los_miembros',
+      'todos',
+      'members',
+      'miembros',
+      'miembros_todos',
+    ].includes(v)
+  ) {
+    return 'todos_miembros';
+  }
+
+  /**
+   * Owner + administradores.
+   *
+   * También absorbemos antiguos valores "owner"
+   * para evitar errores con registros existentes.
+   */
+  if (
+    [
+      'owner_admin',
       'owner',
+      'owner_only',
       'solo_dueno',
       'solo dueño',
       'solo_el_dueno',
       'solo_el_dueño',
-      'owner_only',
       'dueno',
       'dueño',
-    ].includes(v)
-  ) {
-    return 'owner';
-  }
-
-  if (
-    [
-      'owner_admin',
       'dueno_admin',
       'dueño_admin',
       'admin',
@@ -111,105 +209,226 @@ function normalizarPermiso(valor: any): PermisoApi {
     return 'owner_admin';
   }
 
-  if (
-    [
-      'all_members',
-      'todos_miembros',
-      'todos los miembros',
-      'todos_los_miembros',
-      'todos',
-      'members',
-      'miembros',
-      'miembros_todos',
-    ].includes(v)
-  ) {
-    return 'all_members';
-  }
-
-  return 'owner';
+  /**
+   * Valor seguro por defecto.
+   */
+  return 'owner_admin';
 }
 
+/**
+ * =========================================================
+ * 🛡️ VALIDAR PERMISO DE EDICIÓN
+ * =========================================================
+ */
 function puedeEditarProyecto(
   rol: RolProyecto,
   permisoEdicion: PermisoApi
 ): boolean {
-  if (!rol) return false;
-
-  switch (permisoEdicion) {
-    case 'all_members':
-      return rol === 'owner' || rol === 'admin' || rol === 'miembro';
-    case 'owner_admin':
-      return rol === 'owner' || rol === 'admin';
-    case 'owner':
-    default:
-      return rol === 'owner';
+  if (!rol) {
+    return false;
   }
+
+  /**
+   * Cualquier participante puede editar.
+   */
+  if (permisoEdicion === 'todos_miembros') {
+    return (
+      rol === 'owner' ||
+      rol === 'admin' ||
+      rol === 'miembro'
+    );
+  }
+
+  /**
+   * owner_admin.
+   */
+  return (
+    rol === 'owner' ||
+    rol === 'admin'
+  );
 }
 
-function esValorDefinido<T>(value: T | undefined): value is T {
+/**
+ * =========================================================
+ * 🧹 HELPERS
+ * =========================================================
+ */
+
+function esValorDefinido<T>(
+  value: T | undefined
+): value is T {
   return value !== undefined;
 }
 
-function sanitizarTexto(value: unknown): string | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  if (typeof value !== 'string') return undefined;
+function sanitizarTexto(
+  value: unknown
+): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
   return value.trim();
 }
 
-function sanitizarTextoNullable(value: unknown): string | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  if (typeof value !== 'string') return undefined;
+function sanitizarTextoNullable(
+  value: unknown
+): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    return undefined;
+  }
 
   const limpio = value.trim();
-  return limpio === '' ? null : limpio;
+
+  return limpio === ''
+    ? null
+    : limpio;
 }
 
-function castRows<T>(rows: unknown[]): T[] {
+function castRows<T>(
+  rows: unknown[]
+): T[] {
   return rows as T[];
 }
 
-function normalizarEstado(valor: unknown): EstadoProyecto | undefined {
-  if (typeof valor !== 'string') return undefined;
+/**
+ * =========================================================
+ * 🔄 NORMALIZAR ESTADO
+ * =========================================================
+ */
+function normalizarEstado(
+  valor: unknown
+): EstadoProyecto | undefined {
+  if (typeof valor !== 'string') {
+    return undefined;
+  }
 
-  const v = valor.trim().toLowerCase();
+  const v = valor
+    .trim()
+    .toLowerCase();
 
-  if (v === 'activo') return 'activo';
-  if (v === 'pausado') return 'pausado';
-  if (v === 'completado' || v === 'completo') return 'completado';
-  if (v === 'cancelado' || v === 'cancelada') return 'cancelado';
+  if (v === 'activo') {
+    return 'activo';
+  }
+
+  if (v === 'pausado') {
+    return 'pausado';
+  }
+
+  if (
+    v === 'completado' ||
+    v === 'completo'
+  ) {
+    return 'completado';
+  }
+
+  if (
+    v === 'cancelado' ||
+    v === 'cancelada'
+  ) {
+    return 'cancelado';
+  }
 
   return undefined;
 }
 
+/**
+ * =========================================================
+ * 👁️ NORMALIZAR VISIBILIDAD
+ * =========================================================
+ *
+ * La visibilidad solo determina quién puede encontrar
+ * o visualizar el proyecto.
+ *
+ * NO determina cómo se une un usuario.
+ */
 function normalizarVisibilidad(
   valor: unknown
 ): VisibilidadProyecto | undefined {
-  if (typeof valor !== 'string') return undefined;
+  if (typeof valor !== 'string') {
+    return undefined;
+  }
 
-  const v = valor.trim().toLowerCase();
+  const v = valor
+    .trim()
+    .toLowerCase();
 
-  if (v === 'privado') return 'privado';
-  if (v === 'publico' || v === 'público') return 'publico';
+  if (v === 'privado') {
+    return 'privado';
+  }
+
+  if (
+    v === 'publico' ||
+    v === 'público' ||
+    v === 'public'
+  ) {
+    return 'publico';
+  }
 
   return undefined;
 }
 
+/**
+ * =========================================================
+ * 🚪 NORMALIZAR MODO DE ACCESO
+ * =========================================================
+ *
+ * privado:
+ * acceso manual/invitación.
+ *
+ * publico:
+ * unión directa.
+ *
+ * solicitud:
+ * requiere aprobación.
+ */
 function normalizarModoAcceso(
   valor: unknown
 ): ModoAccesoProyecto | undefined {
-  if (typeof valor !== 'string') return undefined;
+  if (typeof valor !== 'string') {
+    return undefined;
+  }
 
-  const v = valor.trim().toLowerCase();
+  const v = valor
+    .trim()
+    .toLowerCase();
 
-  if (v === 'privado') return 'privado';
-  if (v === 'publico' || v === 'público') return 'publico';
+  if (
+    v === 'privado' ||
+    v === 'private'
+  ) {
+    return 'privado';
+  }
+
+  if (
+    v === 'publico' ||
+    v === 'público' ||
+    v === 'public'
+  ) {
+    return 'publico';
+  }
+
   if (
     v === 'solicitud' ||
     v === 'invitacion' ||
     v === 'invitación' ||
-    v === 'request'
+    v === 'request' ||
+    v === 'invite'
   ) {
     return 'solicitud';
   }
@@ -217,30 +436,104 @@ function normalizarModoAcceso(
   return undefined;
 }
 
+/**
+ * =========================================================
+ * 🚩 NORMALIZAR PRIORIDAD
+ * =========================================================
+ */
 function normalizarPrioridad(
   valor: unknown
 ): PrioridadProyecto | undefined {
-  if (typeof valor !== 'string') return undefined;
+  if (typeof valor !== 'string') {
+    return undefined;
+  }
 
-  const v = valor.trim().toLowerCase();
+  const v = valor
+    .trim()
+    .toLowerCase();
 
-  if ((PRIORIDADES_VALIDAS as string[]).includes(v)) {
+  if (
+    PRIORIDADES_VALIDAS.includes(
+      v as PrioridadProyecto
+    )
+  ) {
     return v as PrioridadProyecto;
   }
 
   return undefined;
 }
 
-function escaparIdentificadorSql(nombre: string): string {
-  return `"${String(nombre).replace(/"/g, '""')}"`;
+/**
+ * =========================================================
+ * 🔐 NORMALIZAR ROL EN PROYECTO
+ * =========================================================
+ */
+function normalizarRolProyecto(
+  valor: unknown
+): RolProyecto {
+  const v = String(valor ?? '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    v === 'owner' ||
+    v === 'dueño' ||
+    v === 'dueno'
+  ) {
+    return 'owner';
+  }
+
+  if (
+    v === 'admin' ||
+    v === 'administrador'
+  ) {
+    return 'admin';
+  }
+
+  if (
+    v === 'miembro' ||
+    v === 'member'
+  ) {
+    return 'miembro';
+  }
+
+  return null;
 }
 
+/**
+ * =========================================================
+ * 🧱 ESCAPAR IDENTIFICADORES SQL
+ * =========================================================
+ *
+ * Se utiliza únicamente con nombres de tablas/columnas
+ * obtenidos directamente desde SQLite.
+ */
+function escaparIdentificadorSql(
+  nombre: string
+): string {
+  return `"${String(nombre).replace(
+    /"/g,
+    '""'
+  )}"`;
+}
+
+/**
+ * =========================================================
+ * 👤 OBTENER ROL DEL USUARIO EN PROYECTO
+ * =========================================================
+ */
 async function obtenerRolProyecto(
   proyectoId: number,
   userId: string,
   creadorId?: string | null
 ): Promise<RolProyecto> {
-  if (String(creadorId ?? '') === String(userId)) {
+  /**
+   * El creador siempre es owner.
+   */
+  if (
+    String(creadorId ?? '') ===
+    String(userId)
+  ) {
     return 'owner';
   }
 
@@ -249,21 +542,42 @@ async function obtenerRolProyecto(
       SELECT rol_en_proyecto
       FROM proyecto_usuarios
       WHERE proyecto_id = ?
-        AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-      LIMIT 1;
+        AND CAST(usuario_id AS TEXT)
+          = CAST(? AS TEXT)
+      LIMIT 1
     `,
-    args: [proyectoId, String(userId)],
+    args: [
+      proyectoId,
+      userId,
+    ],
   });
 
-  const rolRows = castRows<{ rol_en_proyecto?: string }>(rolRes.rows);
+  const rolRows =
+    castRows<{
+      rol_en_proyecto?: string | null;
+    }>(
+      rolRes.rows
+    );
+
   const rolRow = rolRows[0];
 
-  return rolRow
-    ? (String(rolRow.rol_en_proyecto).toLowerCase() as RolProyecto)
-    : null;
+  if (!rolRow) {
+    return null;
+  }
+
+  return normalizarRolProyecto(
+    rolRow.rol_en_proyecto
+  );
 }
 
-async function obtenerProyectoPorId(proyectoId: number) {
+/**
+ * =========================================================
+ * 📁 OBTENER PROYECTO POR ID
+ * =========================================================
+ */
+async function obtenerProyectoPorId(
+  proyectoId: number
+): Promise<ProyectoRow | undefined> {
   const projRes = await db.execute({
     sql: `
       SELECT
@@ -282,16 +596,26 @@ async function obtenerProyectoPorId(proyectoId: number) {
         creador_id
       FROM proyectos
       WHERE id = ?
-      LIMIT 1;
+      LIMIT 1
     `,
     args: [proyectoId],
   });
 
-  const rows = castRows<ProyectoRow>(projRes.rows);
+  const rows =
+    castRows<ProyectoRow>(
+      projRes.rows
+    );
+
   return rows[0];
 }
 
-async function listarTablasUsuario(): Promise<string[]> {
+/**
+ * =========================================================
+ * 🗃️ LISTAR TABLAS DEL SISTEMA
+ * =========================================================
+ */
+async function listarTablasUsuario():
+Promise<string[]> {
   const res = await db.execute({
     sql: `
       SELECT name
@@ -302,30 +626,61 @@ async function listarTablasUsuario(): Promise<string[]> {
     args: [],
   });
 
-  return castRows<SqliteTableRow>(res.rows)
-    .map((r) => String(r.name))
+  return castRows<SqliteTableRow>(
+    res.rows
+  )
+    .map((row) =>
+      String(row.name)
+    )
     .filter(Boolean);
 }
 
+/**
+ * =========================================================
+ * 🔗 BUSCAR TABLAS CON FOREIGN KEY
+ * =========================================================
+ */
 async function obtenerTablasQueReferencian(
   tablaObjetivo: string
-): Promise<Array<{ tabla: string; columnaFk: string }>> {
-  const tablas = await listarTablasUsuario();
-  const referencias: Array<{ tabla: string; columnaFk: string }> = [];
+): Promise<
+  Array<{
+    tabla: string;
+    columnaFk: string;
+  }>
+> {
+  const tablas =
+    await listarTablasUsuario();
+
+  const referencias: Array<{
+    tabla: string;
+    columnaFk: string;
+  }> = [];
 
   for (const tabla of tablas) {
-    const pragmaRes = await db.execute({
-      sql: `PRAGMA foreign_key_list(${escaparIdentificadorSql(tabla)})`,
-      args: [],
-    });
+    const pragmaRes =
+      await db.execute({
+        sql: `
+          PRAGMA foreign_key_list(
+            ${escaparIdentificadorSql(tabla)}
+          )
+        `,
+        args: [],
+      });
 
-    const fks = castRows<ForeignKeyRow>(pragmaRes.rows);
+    const fks =
+      castRows<ForeignKeyRow>(
+        pragmaRes.rows
+      );
 
     for (const fk of fks) {
-      if (String(fk.table).toLowerCase() === tablaObjetivo.toLowerCase()) {
+      if (
+        String(fk.table).toLowerCase() ===
+        tablaObjetivo.toLowerCase()
+      ) {
         referencias.push({
           tabla,
-          columnaFk: String(fk.from),
+          columnaFk:
+            String(fk.from),
         });
       }
     }
@@ -334,113 +689,248 @@ async function obtenerTablasQueReferencian(
   return referencias;
 }
 
-async function eliminarReferenciasATareas(proyectoId: number) {
-  const referenciasATareas = await obtenerTablasQueReferencian('tareas');
+/**
+ * =========================================================
+ * 🗑️ ELIMINAR REFERENCIAS A TAREAS
+ * =========================================================
+ */
+async function eliminarReferenciasATareas(
+  proyectoId: number
+) {
+  const referenciasATareas =
+    await obtenerTablasQueReferencian(
+      'tareas'
+    );
 
   for (const ref of referenciasATareas) {
     const tabla = ref.tabla;
     const columnaFk = ref.columnaFk;
 
-    // Evitamos tocar la misma tabla tareas aquí
-    if (tabla.toLowerCase() === 'tareas') continue;
+    if (
+      tabla.toLowerCase() ===
+      'tareas'
+    ) {
+      continue;
+    }
 
     await db.execute({
       sql: `
-        DELETE FROM ${escaparIdentificadorSql(tabla)}
-        WHERE ${escaparIdentificadorSql(columnaFk)} IN (
-          SELECT id
-          FROM tareas
-          WHERE proyecto_id = ?
-        )
+        DELETE FROM
+          ${escaparIdentificadorSql(tabla)}
+        WHERE
+          ${escaparIdentificadorSql(columnaFk)}
+          IN (
+            SELECT id
+            FROM tareas
+            WHERE proyecto_id = ?
+          )
       `,
       args: [proyectoId],
     });
   }
 }
 
-async function eliminarReferenciasAProyecto(proyectoId: number) {
-  const referenciasAProyectos = await obtenerTablasQueReferencian('proyectos');
+/**
+ * =========================================================
+ * 🗑️ ELIMINAR REFERENCIAS AL PROYECTO
+ * =========================================================
+ */
+async function eliminarReferenciasAProyecto(
+  proyectoId: number
+) {
+  const referenciasAProyectos =
+    await obtenerTablasQueReferencian(
+      'proyectos'
+    );
 
   for (const ref of referenciasAProyectos) {
     const tabla = ref.tabla;
     const columnaFk = ref.columnaFk;
 
-    // Evitamos borrar desde la propia tabla proyectos
-    if (tabla.toLowerCase() === 'proyectos') continue;
+    if (
+      tabla.toLowerCase() ===
+      'proyectos'
+    ) {
+      continue;
+    }
 
     await db.execute({
       sql: `
-        DELETE FROM ${escaparIdentificadorSql(tabla)}
-        WHERE ${escaparIdentificadorSql(columnaFk)} = ?
+        DELETE FROM
+          ${escaparIdentificadorSql(tabla)}
+        WHERE
+          ${escaparIdentificadorSql(columnaFk)}
+          = ?
       `,
       args: [proyectoId],
     });
   }
 }
 
-// ─────────────────── GET ───────────────────
-
-export async function GET(req: NextRequest, { params }: ParamsContext) {
+/**
+ * =========================================================
+ * GET /api/proyectos/[id]/configuracion
+ * =========================================================
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: ParamsContext
+) {
   try {
     const { id } = await params;
     const proyectoId = Number(id);
 
-    if (!id || Number.isNaN(proyectoId)) {
+    if (
+      !Number.isInteger(proyectoId) ||
+      proyectoId < 1
+    ) {
       return NextResponse.json(
-        { ok: false, error: 'ID de proyecto inválido' },
+        {
+          ok: false,
+          error:
+            'ID de proyecto inválido',
+        },
         { status: 400 }
       );
     }
 
-    const sessionUser = await getAuthenticatedUser(req);
+    /**
+     * Validar sesión.
+     */
+    const sessionUser =
+      await getAuthenticatedUser(req);
+
     if (!sessionUser) {
       return NextResponse.json(
-        { ok: false, error: 'No autorizado' },
+        {
+          ok: false,
+          error: 'No autorizado',
+        },
         { status: 401 }
       );
     }
 
-    const proyecto = await obtenerProyectoPorId(proyectoId);
+    const proyecto =
+      await obtenerProyectoPorId(
+        proyectoId
+      );
 
     if (!proyecto) {
       return NextResponse.json(
-        { ok: false, error: 'Proyecto no encontrado' },
+        {
+          ok: false,
+          error:
+            'Proyecto no encontrado',
+        },
         { status: 404 }
       );
     }
 
-    const rol = await obtenerRolProyecto(
-      proyectoId,
-      String(sessionUser.id),
-      proyecto.creador_id
-    );
+    /**
+     * Obtener rol.
+     */
+    const rol =
+      await obtenerRolProyecto(
+        proyectoId,
+        sessionUser.id,
+        proyecto.creador_id
+      );
 
-    const permisoEdicion: PermisoApi = normalizarPermiso(
-      proyecto.permiso_editar_proyecto
-    );
-    const permisoGestionTareas: PermisoApi = normalizarPermiso(
-      proyecto.permiso_gestionar_tareas
-    );
+    /**
+     * La configuración es información interna
+     * del proyecto, por lo que debe ser miembro.
+     */
+    if (!rol) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'No tienes acceso a la configuración de este proyecto',
+        },
+        { status: 403 }
+      );
+    }
 
-    const puedeEditar = puedeEditarProyecto(rol, permisoEdicion);
-    const puedeEliminar = rol === 'owner';
+    const permisoEdicion =
+      normalizarPermiso(
+        proyecto.permiso_editar_proyecto
+      );
+
+    const permisoGestionTareas =
+      normalizarPermiso(
+        proyecto.permiso_gestionar_tareas
+      );
+
+    const puedeEditar =
+      puedeEditarProyecto(
+        rol,
+        permisoEdicion
+      );
+
+    /**
+     * Solo owner puede eliminar.
+     */
+    const puedeEliminar =
+      rol === 'owner';
+
+    const proyectoNormalizado = {
+      ...proyecto,
+
+      permiso_editar_proyecto:
+        permisoEdicion,
+
+      permiso_gestionar_tareas:
+        permisoGestionTareas,
+
+      visibilidad:
+        normalizarVisibilidad(
+          proyecto.visibilidad
+        ) ?? 'privado',
+
+      modo_acceso:
+        normalizarModoAcceso(
+          proyecto.modo_acceso
+        ) ?? 'privado',
+
+      prioridad:
+        normalizarPrioridad(
+          proyecto.prioridad
+        ) ?? 'media',
+    };
 
     const payload = {
-      proyecto,
+      proyecto:
+        proyectoNormalizado,
+
       meta: {
         rol,
-        puedeEditarProyecto: puedeEditar,
-        puedeEliminarProyecto: puedeEliminar,
+
+        puedeEditarProyecto:
+          puedeEditar,
+
+        puedeEliminarProyecto:
+          puedeEliminar,
+
         permisosConfiguracion: {
           permisoEdicion,
           permisoGestionTareas,
         },
+
         catalogos: {
-          estados: ESTADOS_VALIDOS,
-          visibilidades: VISIBILIDADES_VALIDAS,
-          modosAcceso: MODOS_ACCESO_VALIDOS,
-          prioridades: PRIORIDADES_VALIDAS,
-          permisos: PERMISOS_VALIDOS,
+          estados:
+            ESTADOS_VALIDOS,
+
+          visibilidades:
+            VISIBILIDADES_VALIDAS,
+
+          modosAcceso:
+            MODOS_ACCESO_VALIDOS,
+
+          prioridades:
+            PRIORIDADES_VALIDAS,
+
+          permisos:
+            PERMISOS_VALIDOS,
         },
       },
     };
@@ -454,222 +944,441 @@ export async function GET(req: NextRequest, { params }: ParamsContext) {
       { status: 200 }
     );
   } catch (err) {
-    console.error('Error en GET /api/proyectos/[id]/configuracion:', err);
+    console.error(
+      'Error en GET /api/proyectos/[id]/configuracion:',
+      err
+    );
+
     return NextResponse.json(
-      { ok: false, error: 'Error interno al cargar configuración' },
+      {
+        ok: false,
+        error:
+          'Error interno al cargar configuración',
+      },
       { status: 500 }
     );
   }
 }
 
-// ─────────────────── PATCH ───────────────────
-
-export async function PATCH(req: NextRequest, { params }: ParamsContext) {
+/**
+ * =========================================================
+ * PATCH /api/proyectos/[id]/configuracion
+ * =========================================================
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: ParamsContext
+) {
   try {
     const { id } = await params;
     const proyectoId = Number(id);
 
-    if (!id || Number.isNaN(proyectoId)) {
+    if (
+      !Number.isInteger(proyectoId) ||
+      proyectoId < 1
+    ) {
       return NextResponse.json(
-        { ok: false, error: 'ID de proyecto inválido' },
+        {
+          ok: false,
+          error:
+            'ID de proyecto inválido',
+        },
         { status: 400 }
       );
     }
 
-    const sessionUser = await getAuthenticatedUser(req);
+    const sessionUser =
+      await getAuthenticatedUser(req);
+
     if (!sessionUser) {
       return NextResponse.json(
-        { ok: false, error: 'No autorizado' },
+        {
+          ok: false,
+          error: 'No autorizado',
+        },
         { status: 401 }
       );
     }
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req
+      .json()
+      .catch(() => ({}));
 
-    const proyecto = await obtenerProyectoPorId(proyectoId);
+    const proyecto =
+      await obtenerProyectoPorId(
+        proyectoId
+      );
 
     if (!proyecto) {
       return NextResponse.json(
-        { ok: false, error: 'Proyecto no encontrado' },
+        {
+          ok: false,
+          error:
+            'Proyecto no encontrado',
+        },
         { status: 404 }
       );
     }
 
-    const rol = await obtenerRolProyecto(
-      proyectoId,
-      String(sessionUser.id),
-      proyecto.creador_id
-    );
+    const rol =
+      await obtenerRolProyecto(
+        proyectoId,
+        sessionUser.id,
+        proyecto.creador_id
+      );
 
-    const permisoEdicionActual: PermisoApi = normalizarPermiso(
-      proyecto.permiso_editar_proyecto
-    );
+    const permisoEdicionActual =
+      normalizarPermiso(
+        proyecto.permiso_editar_proyecto
+      );
 
-    if (!puedeEditarProyecto(rol, permisoEdicionActual)) {
+    /**
+     * Validar permiso actual antes de permitir
+     * cualquier modificación.
+     */
+    if (
+      !puedeEditarProyecto(
+        rol,
+        permisoEdicionActual
+      )
+    ) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'No tienes permisos para editar la configuración de este proyecto',
+          error:
+            'No tienes permisos para editar la configuración de este proyecto',
         },
         { status: 403 }
       );
     }
 
-    const nombreInput = sanitizarTexto(body?.nombre);
-    const descripcionInput = sanitizarTextoNullable(body?.descripcion);
-    const fechaInicioInput = sanitizarTextoNullable(body?.fecha_inicio);
-    const fechaFinInput = sanitizarTextoNullable(body?.fecha_fin);
-
-    const estadoRecibido = body?.estado;
-    const visibilidadRecibida = body?.visibilidad;
-    const modoAccesoRecibido = body?.modo_acceso;
-    const prioridadRecibida = body?.prioridad;
-
-    const permisoEdicionInput =
-      typeof body?.permisoEdicion === 'string'
-        ? body.permisoEdicion.trim().toLowerCase()
-        : undefined;
-
-    const permisoGestionInput =
-      typeof body?.permisoGestionTareas === 'string'
-        ? body.permisoGestionTareas.trim().toLowerCase()
-        : undefined;
-
-    if (esValorDefinido(nombreInput) && !nombreInput) {
-      return NextResponse.json(
-        { ok: false, error: 'El nombre del proyecto no puede estar vacío' },
-        { status: 400 }
+    /**
+     * =====================================================
+     * 📝 DATOS GENERALES
+     * =====================================================
+     */
+    const nombreInput =
+      sanitizarTexto(
+        body?.nombre
       );
-    }
 
-    if (estadoRecibido !== undefined) {
-      const estadoNormalizado = normalizarEstado(estadoRecibido);
-      if (!estadoNormalizado) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: `Estado inválido. Valores permitidos: ${ESTADOS_VALIDOS.join(', ')}`,
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const descripcionInput =
+      sanitizarTextoNullable(
+        body?.descripcion
+      );
 
-    if (visibilidadRecibida !== undefined) {
-      const visibilidadNormalizada = normalizarVisibilidad(visibilidadRecibida);
-      if (!visibilidadNormalizada) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: `Visibilidad inválida. Valores permitidos: ${VISIBILIDADES_VALIDAS.join(', ')}`,
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const fechaInicioInput =
+      sanitizarTextoNullable(
+        body?.fecha_inicio
+      );
 
-    if (modoAccesoRecibido !== undefined) {
-      const modoAccesoNormalizado = normalizarModoAcceso(modoAccesoRecibido);
-      if (!modoAccesoNormalizado) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: `Modo de acceso inválido. Valores permitidos: ${MODOS_ACCESO_VALIDOS.join(', ')}`,
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const fechaFinInput =
+      sanitizarTextoNullable(
+        body?.fecha_fin
+      );
 
-    if (prioridadRecibida !== undefined) {
-      const prioridadNormalizada = normalizarPrioridad(prioridadRecibida);
-      if (!prioridadNormalizada) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: `Prioridad inválida. Valores permitidos: ${PRIORIDADES_VALIDAS.join(', ')}`,
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const estadoRecibido =
+      body?.estado;
 
+    const visibilidadRecibida =
+      body?.visibilidad;
+
+    const modoAccesoRecibido =
+      body?.modo_acceso ??
+      body?.modoAcceso;
+
+    const prioridadRecibida =
+      body?.prioridad;
+
+    /**
+     * Compatibilidad con diferentes nombres
+     * enviados por frontend.
+     */
+    const permisoEdicionRaw =
+      body?.permisoEdicion ??
+      body?.permiso_editar_proyecto;
+
+    const permisoGestionRaw =
+      body?.permisoGestionTareas ??
+      body?.permiso_gestionar_tareas;
+
+    /**
+     * =====================================================
+     * ✅ VALIDACIONES
+     * =====================================================
+     */
     if (
-      permisoEdicionInput !== undefined &&
-      !PERMISOS_VALIDOS.includes(permisoEdicionInput as PermisoApi)
+      esValorDefinido(nombreInput) &&
+      !nombreInput
     ) {
       return NextResponse.json(
         {
           ok: false,
-          error: `permisoEdicion inválido. Valores permitidos: ${PERMISOS_VALIDOS.join(', ')}`,
+          error:
+            'El nombre del proyecto no puede estar vacío',
         },
         { status: 400 }
       );
     }
 
+    const estadoNormalizado =
+      estadoRecibido !== undefined
+        ? normalizarEstado(
+            estadoRecibido
+          )
+        : undefined;
+
     if (
-      permisoGestionInput !== undefined &&
-      !PERMISOS_VALIDOS.includes(permisoGestionInput as PermisoApi)
+      estadoRecibido !== undefined &&
+      !estadoNormalizado
     ) {
       return NextResponse.json(
         {
           ok: false,
-          error: `permisoGestionTareas inválido. Valores permitidos: ${PERMISOS_VALIDOS.join(', ')}`,
+          error:
+            `Estado inválido. Valores permitidos: ${ESTADOS_VALIDOS.join(', ')}`,
         },
         { status: 400 }
       );
     }
+
+    const visibilidadNormalizada =
+      visibilidadRecibida !== undefined
+        ? normalizarVisibilidad(
+            visibilidadRecibida
+          )
+        : undefined;
+
+    if (
+      visibilidadRecibida !== undefined &&
+      !visibilidadNormalizada
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            `Visibilidad inválida. Valores permitidos: ${VISIBILIDADES_VALIDAS.join(', ')}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const modoAccesoNormalizado =
+      modoAccesoRecibido !== undefined
+        ? normalizarModoAcceso(
+            modoAccesoRecibido
+          )
+        : undefined;
+
+    if (
+      modoAccesoRecibido !== undefined &&
+      !modoAccesoNormalizado
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            `Modo de acceso inválido. Valores permitidos: ${MODOS_ACCESO_VALIDOS.join(', ')}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const prioridadNormalizada =
+      prioridadRecibida !== undefined
+        ? normalizarPrioridad(
+            prioridadRecibida
+          )
+        : undefined;
+
+    if (
+      prioridadRecibida !== undefined &&
+      !prioridadNormalizada
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            `Prioridad inválida. Valores permitidos: ${PRIORIDADES_VALIDAS.join(', ')}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 🔐 VALIDAR NUEVOS PERMISOS
+     * =====================================================
+     */
+    let nuevoPermisoEdicion =
+      permisoEdicionActual;
+
+    if (
+      permisoEdicionRaw !== undefined
+    ) {
+      const valor =
+        String(
+          permisoEdicionRaw
+        )
+          .trim()
+          .toLowerCase();
+
+      /**
+       * Aceptamos nombres antiguos del frontend,
+       * pero almacenamos el formato actual.
+       */
+      if (
+        ![
+          'owner_admin',
+          'todos_miembros',
+          'all_members',
+          'owner',
+        ].includes(valor)
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              `permisoEdicion inválido. Valores permitidos: ${PERMISOS_VALIDOS.join(', ')}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      nuevoPermisoEdicion =
+        normalizarPermiso(valor);
+    }
+
+    const permisoGestionActual =
+      normalizarPermiso(
+        proyecto.permiso_gestionar_tareas
+      );
+
+    let nuevoPermisoGestion =
+      permisoGestionActual;
+
+    if (
+      permisoGestionRaw !== undefined
+    ) {
+      const valor =
+        String(
+          permisoGestionRaw
+        )
+          .trim()
+          .toLowerCase();
+
+      if (
+        ![
+          'owner_admin',
+          'todos_miembros',
+          'all_members',
+          'owner',
+        ].includes(valor)
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              `permisoGestionTareas inválido. Valores permitidos: ${PERMISOS_VALIDOS.join(', ')}`,
+          },
+          { status: 400 }
+        );
+      }
+
+      nuevoPermisoGestion =
+        normalizarPermiso(valor);
+    }
+
+    /**
+     * =====================================================
+     * 🔐 SOLO OWNER PUEDE CAMBIAR LOS PERMISOS
+     * =====================================================
+     *
+     * Evita que un admin habilitado para editar
+     * se otorgue permisos más amplios a sí mismo.
+     */
+    const cambiaPermisos =
+      permisoEdicionRaw !== undefined ||
+      permisoGestionRaw !== undefined;
+
+    if (
+      cambiaPermisos &&
+      rol !== 'owner'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Solo el owner puede modificar los permisos del proyecto',
+        },
+        { status: 403 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 📦 VALORES FINALES
+     * =====================================================
+     */
+    const nombreFinal =
+      esValorDefinido(nombreInput)
+        ? nombreInput
+        : proyecto.nombre;
+
+    const descripcionFinal =
+      esValorDefinido(
+        descripcionInput
+      )
+        ? descripcionInput
+        : proyecto.descripcion;
+
+    const fechaInicioFinal =
+      esValorDefinido(
+        fechaInicioInput
+      )
+        ? fechaInicioInput
+        : proyecto.fecha_inicio;
+
+    const fechaFinFinal =
+      esValorDefinido(
+        fechaFinInput
+      )
+        ? fechaFinInput
+        : proyecto.fecha_fin;
 
     const estadoFinal =
-      estadoRecibido !== undefined
-        ? normalizarEstado(estadoRecibido)!
-        : (proyecto.estado as string | null);
+      estadoNormalizado ??
+      normalizarEstado(
+        proyecto.estado
+      ) ??
+      'activo';
 
     const visibilidadFinal =
-      visibilidadRecibida !== undefined
-        ? normalizarVisibilidad(visibilidadRecibida)!
-        : (proyecto.visibilidad as string | null);
+      visibilidadNormalizada ??
+      normalizarVisibilidad(
+        proyecto.visibilidad
+      ) ??
+      'privado';
 
     const modoAccesoFinal =
-      modoAccesoRecibido !== undefined
-        ? normalizarModoAcceso(modoAccesoRecibido)!
-        : (proyecto.modo_acceso as string | null);
+      modoAccesoNormalizado ??
+      normalizarModoAcceso(
+        proyecto.modo_acceso
+      ) ??
+      'privado';
 
     const prioridadFinal =
-      prioridadRecibida !== undefined
-        ? normalizarPrioridad(prioridadRecibida)!
-        : (proyecto.prioridad as string | null);
+      prioridadNormalizada ??
+      normalizarPrioridad(
+        proyecto.prioridad
+      ) ??
+      'media';
 
-    const nuevoPermisoEdicion: PermisoApi =
-      permisoEdicionInput !== undefined
-        ? (permisoEdicionInput as PermisoApi)
-        : permisoEdicionActual;
-
-    const permisoGestionActual: PermisoApi = normalizarPermiso(
-      proyecto.permiso_gestionar_tareas
-    );
-
-    const nuevoPermisoGestion: PermisoApi =
-      permisoGestionInput !== undefined
-        ? (permisoGestionInput as PermisoApi)
-        : permisoGestionActual;
-
-    const nombreFinal = esValorDefinido(nombreInput)
-      ? nombreInput
-      : proyecto.nombre;
-
-    const descripcionFinal = esValorDefinido(descripcionInput)
-      ? descripcionInput
-      : proyecto.descripcion;
-
-    const fechaInicioFinal = esValorDefinido(fechaInicioInput)
-      ? fechaInicioInput
-      : proyecto.fecha_inicio;
-
-    const fechaFinFinal = esValorDefinido(fechaFinInput)
-      ? fechaFinInput
-      : proyecto.fecha_fin;
-
+    /**
+     * =====================================================
+     * 💾 ACTUALIZAR PROYECTO
+     * =====================================================
+     */
     await db.execute({
       sql: `
         UPDATE proyectos
@@ -702,34 +1411,72 @@ export async function PATCH(req: NextRequest, { params }: ParamsContext) {
       ],
     });
 
-    const proyectoUpdated = await obtenerProyectoPorId(proyectoId);
+    /**
+     * Recargar información actualizada.
+     */
+    const proyectoUpdated =
+      await obtenerProyectoPorId(
+        proyectoId
+      );
 
     if (!proyectoUpdated) {
       return NextResponse.json(
-        { ok: false, error: 'No se pudo recargar el proyecto actualizado' },
+        {
+          ok: false,
+          error:
+            'No se pudo recargar el proyecto actualizado',
+        },
         { status: 500 }
       );
     }
 
-    const permisoEdicionFinal: PermisoApi = normalizarPermiso(
-      proyectoUpdated.permiso_editar_proyecto
-    );
-    const permisoGestionFinal: PermisoApi = normalizarPermiso(
-      proyectoUpdated.permiso_gestionar_tareas
-    );
+    const permisoEdicionFinal =
+      normalizarPermiso(
+        proyectoUpdated
+          .permiso_editar_proyecto
+      );
 
-    const puedeEditar = puedeEditarProyecto(rol, permisoEdicionFinal);
-    const puedeEliminar = rol === 'owner';
+    const permisoGestionFinal =
+      normalizarPermiso(
+        proyectoUpdated
+          .permiso_gestionar_tareas
+      );
+
+    const puedeEditar =
+      puedeEditarProyecto(
+        rol,
+        permisoEdicionFinal
+      );
+
+    const puedeEliminar =
+      rol === 'owner';
 
     const payload = {
-      proyecto: proyectoUpdated,
+      proyecto: {
+        ...proyectoUpdated,
+
+        permiso_editar_proyecto:
+          permisoEdicionFinal,
+
+        permiso_gestionar_tareas:
+          permisoGestionFinal,
+      },
+
       meta: {
         rol,
-        puedeEditarProyecto: puedeEditar,
-        puedeEliminarProyecto: puedeEliminar,
+
+        puedeEditarProyecto:
+          puedeEditar,
+
+        puedeEliminarProyecto:
+          puedeEliminar,
+
         permisosConfiguracion: {
-          permisoEdicion: permisoEdicionFinal,
-          permisoGestionTareas: permisoGestionFinal,
+          permisoEdicion:
+            permisoEdicionFinal,
+
+          permisoGestionTareas:
+            permisoGestionFinal,
         },
       },
     };
@@ -737,72 +1484,126 @@ export async function PATCH(req: NextRequest, { params }: ParamsContext) {
     return NextResponse.json(
       {
         ok: true,
-        message: 'Configuración actualizada correctamente',
+
+        message:
+          'Configuración actualizada correctamente',
+
         data: payload,
         ...payload,
       },
       { status: 200 }
     );
   } catch (err) {
-    console.error('Error en PATCH /api/proyectos/[id]/configuracion:', err);
+    console.error(
+      'Error en PATCH /api/proyectos/[id]/configuracion:',
+      err
+    );
+
     return NextResponse.json(
-      { ok: false, error: 'Error interno al guardar configuración' },
+      {
+        ok: false,
+        error:
+          'Error interno al guardar configuración',
+      },
       { status: 500 }
     );
   }
 }
 
-// ─────────────────── DELETE ───────────────────
-
-export async function DELETE(req: NextRequest, { params }: ParamsContext) {
+/**
+ * =========================================================
+ * DELETE /api/proyectos/[id]/configuracion
+ * =========================================================
+ *
+ * Solo el owner puede eliminar un proyecto.
+ *
+ * Antes de eliminarlo se eliminan registros relacionados
+ * mediante las foreign keys detectadas en SQLite.
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: ParamsContext
+) {
   try {
     const { id } = await params;
     const proyectoId = Number(id);
 
-    if (!id || Number.isNaN(proyectoId)) {
+    if (
+      !Number.isInteger(proyectoId) ||
+      proyectoId < 1
+    ) {
       return NextResponse.json(
-        { ok: false, error: 'ID de proyecto inválido' },
+        {
+          ok: false,
+          error:
+            'ID de proyecto inválido',
+        },
         { status: 400 }
       );
     }
 
-    const sessionUser = await getAuthenticatedUser(req);
+    const sessionUser =
+      await getAuthenticatedUser(req);
+
     if (!sessionUser) {
       return NextResponse.json(
-        { ok: false, error: 'No autorizado' },
+        {
+          ok: false,
+          error: 'No autorizado',
+        },
         { status: 401 }
       );
     }
 
-    const proyecto = await obtenerProyectoPorId(proyectoId);
+    const proyecto =
+      await obtenerProyectoPorId(
+        proyectoId
+      );
 
     if (!proyecto) {
       return NextResponse.json(
-        { ok: false, error: 'Proyecto no encontrado' },
+        {
+          ok: false,
+          error:
+            'Proyecto no encontrado',
+        },
         { status: 404 }
       );
     }
 
-    const rol = await obtenerRolProyecto(
-      proyectoId,
-      String(sessionUser.id),
-      proyecto.creador_id
-    );
+    const rol =
+      await obtenerRolProyecto(
+        proyectoId,
+        sessionUser.id,
+        proyecto.creador_id
+      );
 
+    /**
+     * Solamente el owner puede eliminar.
+     */
     if (rol !== 'owner') {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Solo el owner del proyecto puede eliminarlo',
+          error:
+            'Solo el owner del proyecto puede eliminarlo',
         },
         { status: 403 }
       );
     }
 
-    // 1. Eliminar todas las tablas que referencian tareas.id
-    await eliminarReferenciasATareas(proyectoId);
+    /**
+     * =====================================================
+     * 🗑️ ELIMINAR INFORMACIÓN RELACIONADA
+     * =====================================================
+     */
 
-    // 2. Eliminar tareas del proyecto
+    // 1. Eliminar registros relacionados con tareas.
+    await eliminarReferenciasATareas(
+      proyectoId
+    );
+
+    // 2. Eliminar las tareas.
     await db.execute({
       sql: `
         DELETE FROM tareas
@@ -811,10 +1612,13 @@ export async function DELETE(req: NextRequest, { params }: ParamsContext) {
       args: [proyectoId],
     });
 
-    // 3. Eliminar todas las tablas que referencian proyectos.id
-    await eliminarReferenciasAProyecto(proyectoId);
+    // 3. Eliminar registros relacionados directamente
+    //    con el proyecto.
+    await eliminarReferenciasAProyecto(
+      proyectoId
+    );
 
-    // 4. Eliminar proyecto
+    // 4. Finalmente eliminar el proyecto.
     await db.execute({
       sql: `
         DELETE FROM proyectos
@@ -826,14 +1630,23 @@ export async function DELETE(req: NextRequest, { params }: ParamsContext) {
     return NextResponse.json(
       {
         ok: true,
-        message: 'Proyecto eliminado correctamente',
+        message:
+          'Proyecto eliminado correctamente',
       },
       { status: 200 }
     );
   } catch (err) {
-    console.error('Error en DELETE /api/proyectos/[id]/configuracion:', err);
+    console.error(
+      'Error en DELETE /api/proyectos/[id]/configuracion:',
+      err
+    );
+
     return NextResponse.json(
-      { ok: false, error: 'Error interno al eliminar el proyecto' },
+      {
+        ok: false,
+        error:
+          'Error interno al eliminar el proyecto',
+      },
       { status: 500 }
     );
   }

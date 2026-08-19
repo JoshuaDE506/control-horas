@@ -1,18 +1,26 @@
 //app/api/proyectos/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
+
 import {
   getProyectosVisiblesParaUsuario,
   getProyectosCreadosPorUsuario,
   getProyectosDondeSoyMiembro,
   createProyecto,
+  type Proyecto,
   type PrioridadProyecto,
+  type VisibilidadProyecto,
+  type ModoAccesoProyecto,
 } from '@/model/proyectModel';
+
 import { db } from '@/lib/database';
 import { getAuthenticatedUser } from '@/lib/auth';
 
-/* ==========================================================
-   Helpers
-========================================================== */
+/**
+ * =========================================================
+ * 📌 VALORES PERMITIDOS
+ * =========================================================
+ */
 
 const PRIORIDADES_VALIDAS: PrioridadProyecto[] = [
   'baja',
@@ -21,41 +29,103 @@ const PRIORIDADES_VALIDAS: PrioridadProyecto[] = [
   'critica',
 ];
 
-const VISIBILIDADES_VALIDAS = ['privado', 'publico'] as const;
-const MODOS_ACCESO_VALIDOS = ['privado', 'publico', 'solicitud'] as const;
+const VISIBILIDADES_VALIDAS: VisibilidadProyecto[] = [
+  'privado',
+  'publico',
+];
+
+const MODOS_ACCESO_VALIDOS: ModoAccesoProyecto[] = [
+  'privado',
+  'publico',
+  'solicitud',
+];
+
+/**
+ * =========================================================
+ * 🧹 HELPERS
+ * =========================================================
+ */
 
 function sanitizarTexto(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
+  return typeof value === 'string'
+    ? value.trim()
+    : '';
 }
 
-function sanitizarTextoNullable(value: unknown): string | null {
-  if (value == null) return null;
-  if (typeof value !== 'string') return null;
+function sanitizarTextoNullable(
+  value: unknown
+): string | null {
+  if (value == null) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
 
   const limpio = value.trim();
-  return limpio === '' ? null : limpio;
+
+  return limpio === ''
+    ? null
+    : limpio;
 }
 
-function esPrioridadValida(value: unknown): value is PrioridadProyecto {
-  return PRIORIDADES_VALIDAS.includes(value as PrioridadProyecto);
+/**
+ * Valida prioridad.
+ */
+function esPrioridadValida(
+  value: unknown
+): value is PrioridadProyecto {
+  return PRIORIDADES_VALIDAS.includes(
+    value as PrioridadProyecto
+  );
 }
 
+/**
+ * =========================================================
+ * 👁️ NORMALIZAR VISIBILIDAD
+ * =========================================================
+ *
+ * Solo admite:
+ *
+ * - privado
+ * - publico
+ */
 function normalizarVisibilidad(
   value: unknown
-): (typeof VISIBILIDADES_VALIDAS)[number] {
-  const raw = String(value ?? 'privado').trim().toLowerCase();
+): VisibilidadProyecto {
+  const raw = String(value ?? 'privado')
+    .trim()
+    .toLowerCase();
 
-  return VISIBILIDADES_VALIDAS.includes(
-    raw as (typeof VISIBILIDADES_VALIDAS)[number]
-  )
-    ? (raw as (typeof VISIBILIDADES_VALIDAS)[number])
-    : 'privado';
+  if (
+    raw === 'publico' ||
+    raw === 'público' ||
+    raw === 'public'
+  ) {
+    return 'publico';
+  }
+
+  return 'privado';
 }
 
+/**
+ * =========================================================
+ * 🚪 NORMALIZAR MODO DE ACCESO
+ * =========================================================
+ *
+ * Puede ser:
+ *
+ * privado
+ * publico
+ * solicitud
+ */
 function normalizarModoAcceso(
   value: unknown
-): (typeof MODOS_ACCESO_VALIDOS)[number] {
-  const raw = String(value ?? 'privado').trim().toLowerCase();
+): ModoAccesoProyecto {
+  const raw = String(value ?? 'privado')
+    .trim()
+    .toLowerCase();
 
   if (
     raw === 'solicitud' ||
@@ -67,121 +137,299 @@ function normalizarModoAcceso(
     return 'solicitud';
   }
 
-  return MODOS_ACCESO_VALIDOS.includes(
-    raw as (typeof MODOS_ACCESO_VALIDOS)[number]
-  )
-    ? (raw as (typeof MODOS_ACCESO_VALIDOS)[number])
-    : 'privado';
+  if (
+    raw === 'publico' ||
+    raw === 'público' ||
+    raw === 'public'
+  ) {
+    return 'publico';
+  }
+
+  return 'privado';
 }
 
-function normalizarMiembros(miembros: unknown, currentUserId: string): string[] {
-  if (!Array.isArray(miembros)) return [];
+/**
+ * =========================================================
+ * 👥 NORMALIZAR MIEMBROS
+ * =========================================================
+ *
+ * - Convierte IDs a string.
+ * - Elimina valores vacíos.
+ * - Elimina al creador.
+ * - Elimina IDs duplicados.
+ */
+function normalizarMiembros(
+  miembros: unknown,
+  currentUserId: string
+): string[] {
+  if (!Array.isArray(miembros)) {
+    return [];
+  }
 
-  return miembros
-    .map((miembro) => String(miembro ?? '').trim())
-    .filter((miembro) => miembro !== '' && miembro !== currentUserId);
+  return [
+    ...new Set(
+      miembros
+        .map((miembro) =>
+          String(miembro ?? '').trim()
+        )
+        .filter(
+          (miembro) =>
+            miembro !== '' &&
+            miembro !== currentUserId
+        )
+    ),
+  ];
 }
 
-/* ==========================================================
-   GET /api/proyectos?scope=visibles|creados|miembro
-========================================================== */
-
+/**
+ * =========================================================
+ * GET /api/proyectos
+ * =========================================================
+ *
+ * scope:
+ *
+ * visibles → proyectos que puede visualizar.
+ * creados  → proyectos creados por el usuario.
+ * miembro  → proyectos donde participa como miembro.
+ */
 export async function GET(req: NextRequest) {
   try {
-    const sessionUser = await getAuthenticatedUser(req);
+    const sessionUser =
+      await getAuthenticatedUser(req);
 
     if (!sessionUser) {
       return NextResponse.json(
-        { ok: false, error: 'No autenticado' },
+        {
+          ok: false,
+          error: 'No autenticado',
+        },
         { status: 401 }
       );
     }
 
-    const scope = req.nextUrl.searchParams.get('scope')?.toLowerCase();
-    let proyectos: any[] = [];
+    const scope =
+      req.nextUrl.searchParams
+        .get('scope')
+        ?.toLowerCase();
+
+    let proyectos: Proyecto[] = [];
 
     if (scope === 'creados') {
-      proyectos = await getProyectosCreadosPorUsuario(String(sessionUser.id));
+      proyectos =
+        await getProyectosCreadosPorUsuario(
+          sessionUser.id
+        );
     } else if (scope === 'miembro') {
-      proyectos = await getProyectosDondeSoyMiembro(String(sessionUser.id));
+      proyectos =
+        await getProyectosDondeSoyMiembro(
+          sessionUser.id
+        );
     } else {
-      proyectos = await getProyectosVisiblesParaUsuario(String(sessionUser.id));
+      proyectos =
+        await getProyectosVisiblesParaUsuario(
+          sessionUser.id
+        );
     }
 
     return NextResponse.json(
       {
         ok: true,
+
+        /**
+         * Se mantienen ambas propiedades por
+         * compatibilidad con el frontend actual.
+         */
         data: proyectos,
         proyectos,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error('GET /api/proyectos error:', error);
+    console.error(
+      'GET /api/proyectos error:',
+      error
+    );
 
     return NextResponse.json(
-      { ok: false, error: 'Error al cargar proyectos' },
+      {
+        ok: false,
+        error: 'Error al cargar proyectos',
+      },
       { status: 500 }
     );
   }
 }
 
-/* ==========================================================
-   POST /api/proyectos
-========================================================== */
-
+/**
+ * =========================================================
+ * POST /api/proyectos
+ * =========================================================
+ *
+ * Crea un proyecto y registra:
+ *
+ * - creador como owner
+ * - miembros seleccionados
+ */
 export async function POST(req: NextRequest) {
   try {
-    const sessionUser = await getAuthenticatedUser(req);
+    const sessionUser =
+      await getAuthenticatedUser(req);
 
     if (!sessionUser) {
       return NextResponse.json(
-        { ok: false, error: 'No autenticado' },
+        {
+          ok: false,
+          error: 'No autenticado',
+        },
         { status: 401 }
       );
     }
 
-    const body = await req.json().catch(() => ({}));
+    const body = await req
+      .json()
+      .catch(() => ({}));
 
-    const nombre = sanitizarTexto(body?.nombre);
-    const descripcion = sanitizarTexto(body?.descripcion);
-    const prioridadRaw = body?.prioridad;
-    const fechaInicio = sanitizarTextoNullable(body?.fecha_inicio);
-    const fechaFin = sanitizarTextoNullable(body?.fecha_fin);
+    /**
+     * =====================================================
+     * 📝 NORMALIZAR DATOS
+     * =====================================================
+     */
+    const nombre =
+      sanitizarTexto(body?.nombre);
+
+    const descripcion =
+      sanitizarTexto(body?.descripcion);
+
+    const prioridadRaw =
+      body?.prioridad;
+
+    const fechaInicio =
+      sanitizarTextoNullable(
+        body?.fecha_inicio
+      );
+
+    const fechaFin =
+      sanitizarTextoNullable(
+        body?.fecha_fin
+      );
 
     if (!nombre) {
       return NextResponse.json(
-        { ok: false, error: 'El nombre del proyecto es obligatorio' },
+        {
+          ok: false,
+          error:
+            'El nombre del proyecto es obligatorio',
+        },
         { status: 400 }
       );
     }
 
-    const prioridadFinal: PrioridadProyecto = esPrioridadValida(prioridadRaw)
-      ? prioridadRaw
-      : 'media';
+    /**
+     * =====================================================
+     * 🚩 PRIORIDAD
+     * =====================================================
+     */
+    const prioridadFinal:
+      PrioridadProyecto =
+      esPrioridadValida(prioridadRaw)
+        ? prioridadRaw
+        : 'media';
 
-    const visibilidadFinal = normalizarVisibilidad(body?.visibilidad);
+    /**
+     * =====================================================
+     * 👁️ VISIBILIDAD
+     * =====================================================
+     */
+    const visibilidadFinal =
+      normalizarVisibilidad(
+        body?.visibilidad
+      );
 
-    const modoAccesoFinal = normalizarModoAcceso(
-      body?.modo_acceso ?? body?.modoAcceso
-    );
+    /**
+     * =====================================================
+     * 🚪 MODO DE ACCESO
+     * =====================================================
+     */
+    const modoAccesoFinal =
+      normalizarModoAcceso(
+        body?.modo_acceso ??
+          body?.modoAcceso
+      );
 
-    const miembrosLimpios = normalizarMiembros(
-      body?.miembros,
-      String(sessionUser.id)
-    );
+    /**
+     * =====================================================
+     * 👥 MIEMBROS
+     * =====================================================
+     */
+    const miembrosLimpios =
+      normalizarMiembros(
+        body?.miembros,
+        sessionUser.id
+      );
 
-    const proyecto = await createProyecto({
-      nombre,
-      descripcion,
-      prioridad: prioridadFinal,
-      creadorId: String(sessionUser.id),
-      visibilidad: visibilidadFinal,
-      modoAcceso: modoAccesoFinal,
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin,
-    });
+    /**
+     * =====================================================
+     * 🔎 VALIDAR MIEMBROS
+     * =====================================================
+     *
+     * Solo permitimos agregar usuarios que:
+     *
+     * - existan
+     * - estén activos
+     */
+    for (const miembroId of miembrosLimpios) {
+      const usuarioResult =
+        await db.execute({
+          sql: `
+            SELECT id
+            FROM usuarios
+            WHERE id = ?
+              AND CAST(
+                COALESCE(activo, 0)
+                AS INTEGER
+              ) = 1
+            LIMIT 1
+          `,
+          args: [miembroId],
+        });
 
+      if (
+        !usuarioResult.rows ||
+        usuarioResult.rows.length === 0
+      ) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              'Uno de los miembros seleccionados no existe o está inactivo.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    /**
+     * =====================================================
+     * 📁 CREAR PROYECTO
+     * =====================================================
+     */
+    const proyecto =
+      await createProyecto({
+        nombre,
+        descripcion,
+        prioridad: prioridadFinal,
+        creadorId: sessionUser.id,
+        visibilidad: visibilidadFinal,
+        modoAcceso: modoAccesoFinal,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+      });
+
+    /**
+     * =====================================================
+     * 👑 REGISTRAR CREADOR COMO OWNER
+     * =====================================================
+     */
     await db.execute({
       sql: `
         INSERT OR IGNORE INTO proyecto_usuarios (
@@ -190,11 +438,24 @@ export async function POST(req: NextRequest) {
           rol_en_proyecto,
           tipo_union
         )
-        VALUES (?, ?, 'owner', 'owner')
+        VALUES (
+          ?,
+          ?,
+          'owner',
+          'owner'
+        )
       `,
-      args: [proyecto.id, String(sessionUser.id)],
+      args: [
+        proyecto.id,
+        sessionUser.id,
+      ],
     });
 
+    /**
+     * =====================================================
+     * 👥 REGISTRAR MIEMBROS
+     * =====================================================
+     */
     for (const miembroId of miembrosLimpios) {
       await db.execute({
         sql: `
@@ -204,26 +465,54 @@ export async function POST(req: NextRequest) {
             rol_en_proyecto,
             tipo_union
           )
-          VALUES (?, ?, 'miembro', 'manual')
+          VALUES (
+            ?,
+            ?,
+            'miembro',
+            'manual'
+          )
         `,
-        args: [proyecto.id, miembroId],
+        args: [
+          proyecto.id,
+          miembroId,
+        ],
       });
     }
+
+    /**
+     * El creador acaba de ser registrado como owner,
+     * por lo tanto también es miembro del proyecto.
+     */
+    proyecto.is_creator = 1;
+    proyecto.is_member = 1;
 
     return NextResponse.json(
       {
         ok: true,
-        message: 'Proyecto creado correctamente',
+        message:
+          'Proyecto creado correctamente',
+
+        /**
+         * Ambas propiedades se mantienen para evitar
+         * romper el frontend actual.
+         */
         data: proyecto,
         proyecto,
       },
       { status: 201 }
     );
   } catch (error) {
-    console.error('POST /api/proyectos error:', error);
+    console.error(
+      'POST /api/proyectos error:',
+      error
+    );
 
     return NextResponse.json(
-      { ok: false, error: 'Error al crear proyecto' },
+      {
+        ok: false,
+        error:
+          'Error al crear proyecto',
+      },
       { status: 500 }
     );
   }

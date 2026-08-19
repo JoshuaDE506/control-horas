@@ -3,8 +3,17 @@
 
 import React, { useEffect } from 'react';
 
-type Prioridad = 'baja' | 'media' | 'alta';
-type Estado = 'todo' | 'in-progress' | 'completed';
+type Prioridad =
+  | 'baja'
+  | 'media'
+  | 'alta'
+  | 'critica';
+
+type Estado =
+  | 'todo'
+  | 'in-progress'
+  | 'review'
+  | 'completed';
 
 export interface TaskFormData {
   titulo: string;
@@ -58,23 +67,40 @@ export default function TaskFormModal({
     if (!isOpen) return;
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !saving) onClose();
+      if (e.key === 'Escape' && !saving) {
+        onClose();
+      }
     };
 
     window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
   }, [isOpen, saving, onClose]);
 
   if (!isOpen) return null;
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement |
+      HTMLTextAreaElement |
+      HTMLSelectElement
+    >
   ) => {
     const { name, value } = e.target;
-    onChange({ ...formData, [name]: value });
+
+    onChange({
+      ...formData,
+      [name]: value,
+    });
   };
 
-  const tituloModal = mode === 'create' ? 'Crear Nueva Tarea' : 'Editar Tarea';
+  const tituloModal =
+    mode === 'create'
+      ? 'Crear Nueva Tarea'
+      : 'Editar Tarea';
+
   const submitLabel = saving
     ? mode === 'create'
       ? 'Creando...'
@@ -83,23 +109,65 @@ export default function TaskFormModal({
     ? 'Crear Tarea'
     : 'Guardar cambios';
 
-  const dias = Math.max(0, parseInt(formData.tiempo_estimado_dias || '0', 10) || 0);
-  const horas = Math.max(0, parseInt(formData.tiempo_estimado_horas || '0', 10) || 0);
+  const dias = Math.max(
+    0,
+    parseInt(
+      formData.tiempo_estimado_dias || '0',
+      10
+    ) || 0
+  );
+
+  const horas = Math.max(
+    0,
+    parseInt(
+      formData.tiempo_estimado_horas || '0',
+      10
+    ) || 0
+  );
+
   const minutos = Math.max(
     0,
-    Math.min(59, parseInt(formData.tiempo_estimado_minutos || '0', 10) || 0)
+    Math.min(
+      59,
+      parseInt(
+        formData.tiempo_estimado_minutos || '0',
+        10
+      ) || 0
+    )
   );
-  const horasPorDia = formData.horas_por_dia === '12' ? 12 : 8;
 
-  const totalMinutos = dias * horasPorDia * 60 + horas * 60 + minutos;
-  const totalHoras = Math.floor(totalMinutos / 60);
-  const restMinutos = totalMinutos % 60;
-  const tieneTiempo = totalMinutos > 0;
+  const horasPorDia =
+    formData.horas_por_dia === '12'
+      ? 12
+      : 8;
+
+  const totalMinutos =
+    dias * horasPorDia * 60 +
+    horas * 60 +
+    minutos;
+
+  const totalHoras =
+    Math.floor(totalMinutos / 60);
+
+  const restMinutos =
+    totalMinutos % 60;
+
+  const tieneTiempo =
+    totalMinutos > 0;
 
   const previewParts: string[] = [];
-  if (dias > 0) previewParts.push(`${dias}d`);
-  if (horas > 0) previewParts.push(`${horas}h`);
-  if (minutos > 0) previewParts.push(`${minutos}m`);
+
+  if (dias > 0) {
+    previewParts.push(`${dias}d`);
+  }
+
+  if (horas > 0) {
+    previewParts.push(`${horas}h`);
+  }
+
+  if (minutos > 0) {
+    previewParts.push(`${minutos}m`);
+  }
 
   const previewLabel = tieneTiempo
     ? `${previewParts.join(' ')} • jornada ${horasPorDia}h → ${totalHoras}h ${restMinutos
@@ -128,7 +196,9 @@ export default function TaskFormModal({
           </div>
 
           <div className="flex items-start justify-between gap-3">
-            <h2 className="pr-2 text-lg font-bold text-white sm:text-xl">{tituloModal}</h2>
+            <h2 className="pr-2 text-lg font-bold text-white sm:text-xl">
+              {tituloModal}
+            </h2>
 
             <button
               type="button"
@@ -137,8 +207,18 @@ export default function TaskFormModal({
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-800/50 text-gray-400 transition-all hover:bg-slate-700/50 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               aria-label="Cerrar"
             >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
@@ -147,13 +227,18 @@ export default function TaskFormModal({
         <div className="max-h-[calc(92vh-76px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           {error && (
             <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
-              <svg className="mt-0.5 h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <svg
+                className="mt-0.5 h-4 w-4 shrink-0"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
                   clipRule="evenodd"
                 />
               </svg>
+
               <span>{error}</span>
             </div>
           )}
@@ -161,7 +246,11 @@ export default function TaskFormModal({
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              if (!canManage || saving) return;
+
+              if (!canManage || saving) {
+                return;
+              }
+
               onSubmit();
             }}
             className="space-y-4"
@@ -171,6 +260,7 @@ export default function TaskFormModal({
                 <label className="mb-1 block text-sm font-medium text-gray-300">
                   Título *
                 </label>
+
                 <input
                   type="text"
                   name="titulo"
@@ -186,6 +276,7 @@ export default function TaskFormModal({
                 <label className="mb-1 block text-sm font-medium text-gray-300">
                   Prioridad
                 </label>
+
                 <select
                   name="prioridad"
                   value={formData.prioridad}
@@ -193,9 +284,21 @@ export default function TaskFormModal({
                   className="w-full rounded-lg border border-white/10 bg-slate-800/50 px-3 py-2.5 text-sm text-white outline-none transition-all focus:border-purple-500 focus:ring-1 focus:ring-purple-500/20 [color-scheme:dark]"
                   disabled={saving}
                 >
-                  <option value="baja">Baja</option>
-                  <option value="media">Media</option>
-                  <option value="alta">Alta</option>
+                  <option value="baja">
+                    Baja
+                  </option>
+
+                  <option value="media">
+                    Media
+                  </option>
+
+                  <option value="alta">
+                    Alta
+                  </option>
+
+                  <option value="critica">
+                    Crítica
+                  </option>
                 </select>
               </div>
             </div>
@@ -204,6 +307,7 @@ export default function TaskFormModal({
               <label className="mb-1 block text-sm font-medium text-gray-300">
                 Descripción
               </label>
+
               <textarea
                 name="descripcion"
                 value={formData.descripcion}
@@ -224,6 +328,7 @@ export default function TaskFormModal({
                 <label className="mb-1 block text-[11px] text-slate-400">
                   Equivalencia por día
                 </label>
+
                 <select
                   name="horas_por_dia"
                   value={formData.horas_por_dia}
@@ -231,8 +336,13 @@ export default function TaskFormModal({
                   className="w-full rounded-lg border border-white/10 bg-slate-800/50 px-3 py-2.5 text-sm text-white outline-none transition-all focus:border-purple-500 focus:ring-1 focus:ring-purple-500/20 [color-scheme:dark]"
                   disabled={saving}
                 >
-                  <option value="8">1 día = 8 horas</option>
-                  <option value="12">1 día = 12 horas</option>
+                  <option value="8">
+                    1 día = 8 horas
+                  </option>
+
+                  <option value="12">
+                    1 día = 12 horas
+                  </option>
                 </select>
               </div>
 
@@ -249,6 +359,7 @@ export default function TaskFormModal({
                       placeholder="0"
                       disabled={saving}
                     />
+
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-500">
                       días
                     </span>
@@ -267,6 +378,7 @@ export default function TaskFormModal({
                       placeholder="0"
                       disabled={saving}
                     />
+
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-500">
                       h
                     </span>
@@ -286,6 +398,7 @@ export default function TaskFormModal({
                       placeholder="0"
                       disabled={saving}
                     />
+
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-500">
                       m
                     </span>
@@ -306,6 +419,7 @@ export default function TaskFormModal({
                       clipRule="evenodd"
                     />
                   </svg>
+
                   <span className="text-[11px] leading-relaxed text-purple-300">
                     {previewLabel}
                   </span>
@@ -317,12 +431,14 @@ export default function TaskFormModal({
               <label className="mb-1 block text-sm font-medium text-gray-300">
                 Max. participantes
               </label>
+
               <input
                 type="number"
                 name="max_participantes"
                 value={formData.max_participantes}
                 onChange={handleInputChange}
                 min="1"
+                max="50"
                 className="w-full rounded-lg border border-white/10 bg-slate-800/50 px-3 py-2.5 text-sm text-white placeholder-gray-500 outline-none transition-all focus:border-purple-500 focus:ring-1 focus:ring-purple-500/20"
                 disabled={saving}
               />

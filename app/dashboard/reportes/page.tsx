@@ -1,3 +1,4 @@
+//app/dashboard/reportes/page.tsx
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -70,7 +71,12 @@ type Proyecto = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function hoyISO() {
-  return new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 }
 
 function primerDiaMesISO() {
@@ -81,7 +87,15 @@ function primerDiaMesISO() {
 function formatFecha(iso: string) {
   if (!iso) return '—';
 
+  const fechaSimple = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (fechaSimple) {
+    const [, year, month, day] = fechaSimple;
+    return `${day}/${month}/${year}`;
+  }
+
   const date = new Date(iso);
+
   if (Number.isNaN(date.getTime())) {
     const [y, m, d] = iso.split('-');
     if (y && m && d) return `${d}/${m}/${y}`;
@@ -386,10 +400,17 @@ function TabJornada() {
           credentials: 'include',
           cache: 'no-store',
         });
-        const data = await res.json();
-        if (data.ok) setUsuarios(data.data ?? []);
-      } catch {}
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data?.ok) {
+          setUsuarios(Array.isArray(data.data) ? data.data : []);
+        }
+      } catch (error) {
+        console.error('Error cargando usuarios para reporte de jornada:', error);
+      }
     };
+
     fetch_();
   }, []);
 
@@ -405,18 +426,27 @@ function TabJornada() {
   async function buscar() {
     setLoading(true);
     setError('');
+
     try {
       const res = await fetch(`/api/reportes/jornada?${buildQS(filtros)}`, {
         credentials: 'include',
         cache: 'no-store',
       });
-      const data = await res.json();
-      if (data.ok) {
-        setReporte(data);
-      } else {
-        setError(data.error ?? 'Error al obtener reporte');
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data?.ok !== true) {
+        setError(
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Error al obtener reporte'
+        );
+        return;
       }
-    } catch {
+
+      setReporte(data);
+    } catch (error) {
+      console.error('Error obteniendo reporte de jornada:', error);
       setError('Error de red al obtener reporte.');
     } finally {
       setLoading(false);
@@ -1053,12 +1083,15 @@ function TabTareas() {
           credentials: 'include',
           cache: 'no-store',
         });
-        const data = await res.json();
 
-        if (data.ok) {
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data?.ok) {
           setUsuarios(Array.isArray(data.data) ? data.data : []);
         }
-      } catch {}
+      } catch (error) {
+        console.error('Error cargando usuarios para reporte de tareas:', error);
+      }
     };
 
     fetchUsuarios();
@@ -1079,12 +1112,19 @@ function TabTareas() {
         ]);
 
         const [creadosData, miembroData] = await Promise.all([
-          creadosRes.json(),
-          miembroRes.json(),
+          creadosRes.json().catch(() => ({})),
+          miembroRes.json().catch(() => ({})),
         ]);
 
-        const creados = Array.isArray(creadosData?.proyectos) ? creadosData.proyectos : [];
-        const miembro = Array.isArray(miembroData?.proyectos) ? miembroData.proyectos : [];
+        const creados =
+          creadosRes.ok && Array.isArray(creadosData?.proyectos)
+            ? creadosData.proyectos
+            : [];
+
+        const miembro =
+          miembroRes.ok && Array.isArray(miembroData?.proyectos)
+            ? miembroData.proyectos
+            : [];
 
         const mapa = new Map<string, Proyecto>();
 
@@ -1099,7 +1139,8 @@ function TabTareas() {
         });
 
         setProyectos(Array.from(mapa.values()));
-      } catch {
+      } catch (error) {
+        console.error('Error cargando proyectos para reportes:', error);
         setProyectos([]);
       }
     };
@@ -1130,10 +1171,14 @@ function TabTareas() {
         cache: 'no-store',
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
-      if (!res.ok || !data?.ok) {
-        setError(data?.error ?? 'Error al obtener reporte de tareas');
+      if (!res.ok || data?.ok !== true) {
+        setError(
+          typeof data?.error === 'string'
+            ? data.error
+            : 'Error al obtener reporte de tareas'
+        );
         setReporte(null);
         return;
       }
@@ -1161,7 +1206,8 @@ function TabTareas() {
         resumen,
         tareas,
       });
-    } catch {
+    } catch (error) {
+      console.error('Error obteniendo reporte de tareas:', error);
       setError('Error de red al obtener reporte.');
       setReporte(null);
     } finally {

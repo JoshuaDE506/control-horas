@@ -1,4 +1,5 @@
 // app/api/proyectos/[id]/tareas/[tareaId]/seleccionar/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -6,8 +7,17 @@ import { randomUUID } from 'crypto';
 
 export const runtime = 'nodejs';
 
-type ModoAccesoProyecto = 'privado' | 'publico' | 'solicitud';
-type EstadoTarea = 'todo' | 'in-progress' | 'review' | 'completed';
+/**
+ * =========================================================
+ * 📌 TIPOS AUXILIARES
+ * =========================================================
+ */
+
+type EstadoTarea =
+  | 'todo'
+  | 'in-progress'
+  | 'review'
+  | 'completed';
 
 type TareaRow = {
   id: string;
@@ -19,8 +29,6 @@ type TareaRow = {
 type ProyectoRow = {
   id: number | bigint | null;
   creador_id: string | null;
-  modo_acceso: string | null;
-  visibilidad: string | null;
 };
 
 type IdRow = {
@@ -31,249 +39,405 @@ type CountRow = {
   c: number | bigint | null;
 };
 
+/**
+ * =========================================================
+ * 🔄 HELPERS
+ * =========================================================
+ */
+
 function castRows<T>(rows: unknown[]): T[] {
   return rows as T[];
 }
 
-function toProjectId(value: string): number | null {
+function toProjectId(
+  value: string
+): number | null {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
-function normalizeEstado(raw: unknown): EstadoTarea {
-  const value = String(raw ?? '').toLowerCase().trim();
-
-  if (value === 'in-progress' || value === 'in_progress') return 'in-progress';
-  if (value === 'review' || value === 'revision' || value === 'revisión') {
-    return 'review';
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < 1
+  ) {
+    return null;
   }
-  if (value === 'completed') return 'completed';
-  return 'todo';
+
+  return parsed;
 }
 
-function normalizarModoAcceso(
-  rawModo: unknown,
-  rawVisibilidad?: unknown
-): ModoAccesoProyecto {
-  const modo = String(rawModo ?? '').toLowerCase().trim();
-  const vis = String(rawVisibilidad ?? '').toLowerCase().trim();
+/**
+ * =========================================================
+ * 📋 NORMALIZAR ESTADO
+ * =========================================================
+ */
+function normalizeEstado(
+  raw: unknown
+): EstadoTarea {
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
-  if (modo === 'publico' || modo === 'público' || modo === 'public') {
-    return 'publico';
+  if (
+    value === 'in-progress' ||
+    value === 'in_progress' ||
+    value === 'en_progreso' ||
+    value === 'en progreso'
+  ) {
+    return 'in-progress';
   }
 
   if (
-    modo === 'solicitud' ||
-    modo === 'request' ||
-    modo === 'invitacion' ||
-    modo === 'invitación' ||
-    modo === 'invite'
+    value === 'review' ||
+    value === 'revision' ||
+    value === 'revisión'
   ) {
-    return 'solicitud';
+    return 'review';
   }
 
-  if (modo === 'privado' || modo === 'private') {
-    return 'privado';
+  if (
+    value === 'completed' ||
+    value === 'completado' ||
+    value === 'completada'
+  ) {
+    return 'completed';
   }
 
-  if (vis === 'publico' || vis === 'público' || vis === 'public') {
-    return 'publico';
-  }
-
-  return 'privado';
+  return 'todo';
 }
 
+/**
+ * =========================================================
+ * POST /api/proyectos/[id]/tareas/[tareaId]/seleccionar
+ * =========================================================
+ *
+ * Selecciona una tarea para el usuario autenticado.
+ *
+ * IMPORTANTE:
+ *
+ * Seleccionar NO inicia el cronómetro.
+ *
+ * Solo crea o reactiva la asignación.
+ *
+ * El cronómetro comenzará posteriormente mediante:
+ *
+ * /comenzar
+ */
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string; tareaId: string }> }
+  {
+    params,
+  }: {
+    params: Promise<{
+      id: string;
+      tareaId: string;
+    }>;
+  }
 ) {
   try {
-    const sessionUser = await getAuthenticatedUser(req);
+    /**
+     * =====================================================
+     * 🔐 VALIDAR USUARIO
+     * =====================================================
+     */
+    const sessionUser =
+      await getAuthenticatedUser(req);
 
     if (!sessionUser) {
       return NextResponse.json(
-        { ok: false, error: 'No autenticado' },
+        {
+          ok: false,
+          error: 'No autenticado',
+        },
         { status: 401 }
       );
     }
 
-    const userId = String(sessionUser.id);
-    const { id, tareaId } = await params;
-    const proyectoId = toProjectId(id);
+    const userId =
+      String(sessionUser.id);
 
-    if (proyectoId == null || !tareaId) {
-      return NextResponse.json(
-        { ok: false, error: 'Parámetros inválidos' },
-        { status: 400 }
-      );
-    }
+    /**
+     * =====================================================
+     * 📁 VALIDAR PARÁMETROS
+     * =====================================================
+     */
+    const {
+      id,
+      tareaId,
+    } = await params;
 
-    const now = new Date().toISOString();
+    const proyectoId =
+      toProjectId(id);
 
-    const tRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          estado,
-          max_participantes,
-          proyecto_id
-        FROM tareas
-        WHERE id = ?
-          AND proyecto_id = ?
-        LIMIT 1
-      `,
-      args: [String(tareaId), proyectoId],
-    });
-
-    const tareaRows = castRows<TareaRow>(tRes.rows);
-    const tarea = tareaRows[0];
-
-    if (!tarea) {
-      return NextResponse.json(
-        { ok: false, error: 'Tarea no existe' },
-        { status: 404 }
-      );
-    }
-
-    const estadoTarea = normalizeEstado(tarea.estado);
-
-    if (estadoTarea === 'completed') {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'No puedes seleccionar una tarea completada',
-        },
-        { status: 409 }
-      );
-    }
-
-    if (estadoTarea === 'review') {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'No puedes seleccionar una tarea que está en review',
-        },
-        { status: 409 }
-      );
-    }
-
-    const pRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          creador_id,
-          modo_acceso,
-          visibilidad
-        FROM proyectos
-        WHERE id = ?
-        LIMIT 1
-      `,
-      args: [proyectoId],
-    });
-
-    const proyectoRows = castRows<ProyectoRow>(pRes.rows);
-    const proyecto = proyectoRows[0];
-
-    if (!proyecto) {
-      return NextResponse.json(
-        { ok: false, error: 'Proyecto no existe' },
-        { status: 404 }
-      );
-    }
-
-    const isCreator = String(proyecto.creador_id ?? '') === userId;
-
-    const memberRes = await db.execute({
-      sql: `
-        SELECT 1
-        FROM proyecto_usuarios
-        WHERE proyecto_id = ?
-          AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-        LIMIT 1
-      `,
-      args: [proyectoId, userId],
-    });
-
-    const isMember = !!memberRes.rows?.length;
-
-    const modoAcceso = normalizarModoAcceso(
-      proyecto.modo_acceso,
-      proyecto.visibilidad
-    );
-
-    let canAccess = false;
-    let canRequestAccess = false;
-
-    if (modoAcceso === 'publico') {
-      canAccess = true;
-    } else if (modoAcceso === 'solicitud') {
-      canAccess = isCreator || isMember;
-      canRequestAccess = !canAccess;
-    } else {
-      canAccess = isCreator || isMember;
-    }
-
-    if (!canAccess) {
+    if (
+      proyectoId == null ||
+      !tareaId
+    ) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            modoAcceso === 'solicitud'
-              ? 'Requiere aprobación'
-              : 'Sin acceso a este proyecto',
-          canRequestAccess,
+            'Parámetros inválidos',
+        },
+        { status: 400 }
+      );
+    }
+
+    const now =
+      new Date().toISOString();
+
+    /**
+     * =====================================================
+     * 📋 VALIDAR TAREA
+     * =====================================================
+     */
+    const tareaRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            estado,
+            max_participantes,
+            proyecto_id
+          FROM tareas
+          WHERE id = ?
+            AND proyecto_id = ?
+          LIMIT 1
+        `,
+        args: [
+          String(tareaId),
+          proyectoId,
+        ],
+      });
+
+    const tareaRows =
+      castRows<TareaRow>(
+        tareaRes.rows
+      );
+
+    const tarea =
+      tareaRows[0];
+
+    if (!tarea) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Tarea no existe',
+        },
+        { status: 404 }
+      );
+    }
+
+    const estadoTarea =
+      normalizeEstado(
+        tarea.estado
+      );
+
+    /**
+     * No permitimos seleccionar tareas cerradas
+     * o pendientes de revisión.
+     */
+    if (
+      estadoTarea === 'completed'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'No puedes seleccionar una tarea completada',
+        },
+        { status: 409 }
+      );
+    }
+
+    if (
+      estadoTarea === 'review'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'No puedes seleccionar una tarea que está en revisión',
+        },
+        { status: 409 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 📁 VALIDAR PROYECTO
+     * =====================================================
+     */
+    const proyectoRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            creador_id
+          FROM proyectos
+          WHERE id = ?
+          LIMIT 1
+        `,
+        args: [proyectoId],
+      });
+
+    const proyectoRows =
+      castRows<ProyectoRow>(
+        proyectoRes.rows
+      );
+
+    const proyecto =
+      proyectoRows[0];
+
+    if (!proyecto) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Proyecto no existe',
+        },
+        { status: 404 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 👑 VALIDAR OWNER / MEMBRESÍA
+     * =====================================================
+     */
+    const esCreador =
+      String(
+        proyecto.creador_id ?? ''
+      ) === userId;
+
+    const memberRes =
+      await db.execute({
+        sql: `
+          SELECT 1
+          FROM proyecto_usuarios
+          WHERE proyecto_id = ?
+            AND CAST(usuario_id AS TEXT)
+              = CAST(? AS TEXT)
+          LIMIT 1
+        `,
+        args: [
+          proyectoId,
+          userId,
+        ],
+      });
+
+    const esMiembro =
+      Boolean(
+        memberRes.rows?.length
+      );
+
+    /**
+     * Las tareas son internas.
+     *
+     * Un proyecto público NO permite que un externo
+     * seleccione una tarea.
+     */
+    if (
+      !esCreador &&
+      !esMiembro
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Debes ser miembro del proyecto para seleccionar tareas',
         },
         { status: 403 }
       );
     }
 
+    /**
+     * =====================================================
+     * 👥 MÁXIMO DE PARTICIPANTES
+     * =====================================================
+     */
+    const maxParticipantesRaw =
+      Number(
+        tarea.max_participantes ?? 1
+      );
+
     const maxParticipantes =
-      Number(tarea.max_participantes ?? 1) > 0
-        ? Number(tarea.max_participantes ?? 1)
+      Number.isInteger(
+        maxParticipantesRaw
+      ) &&
+      maxParticipantesRaw > 0
+        ? maxParticipantesRaw
         : 1;
 
-    const yaActivoRes = await db.execute({
-      sql: `
-        SELECT id
-        FROM tarea_asignaciones
-        WHERE tarea_id = ?
-          AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-          AND estado = 'activo'
-        LIMIT 1
-      `,
-      args: [String(tareaId), userId],
-    });
-
-    const yaActivoRows = castRows<IdRow>(yaActivoRes.rows);
-    const asignacionActiva = yaActivoRows[0];
-
-    if (asignacionActiva) {
+    /**
+     * =====================================================
+     * 🔎 COMPROBAR ASIGNACIÓN ACTIVA EXISTENTE
+     * =====================================================
+     */
+    const yaActivoRes =
       await db.execute({
         sql: `
-          UPDATE tarea_asignaciones
-          SET seleccionado_en = ?
-          WHERE id = ?
-        `,
-        args: [now, String(asignacionActiva.id)],
-      });
-
-      const activosRes = await db.execute({
-        sql: `
-          SELECT COUNT(*) AS c
+          SELECT id
           FROM tarea_asignaciones
           WHERE tarea_id = ?
+            AND CAST(usuario_id AS TEXT)
+              = CAST(? AS TEXT)
             AND estado = 'activo'
+          LIMIT 1
         `,
-        args: [String(tareaId)],
+        args: [
+          String(tareaId),
+          userId,
+        ],
       });
 
-      const activosRows = castRows<CountRow>(activosRes.rows);
-      const activos = Number(activosRows[0]?.c ?? 0);
+    const yaActivoRows =
+      castRows<IdRow>(
+        yaActivoRes.rows
+      );
+
+    const asignacionActiva =
+      yaActivoRows[0];
+
+    /**
+     * =====================================================
+     * ✅ YA ESTABA SELECCIONADA
+     * =====================================================
+     *
+     * No generamos otra asignación.
+     *
+     * Tampoco modificamos iniciado_en.
+     */
+    if (asignacionActiva) {
+      const activosRes =
+        await db.execute({
+          sql: `
+            SELECT COUNT(*) AS c
+            FROM tarea_asignaciones
+            WHERE tarea_id = ?
+              AND estado = 'activo'
+          `,
+          args: [
+            String(tareaId),
+          ],
+        });
+
+      const activosRows =
+        castRows<CountRow>(
+          activosRes.rows
+        );
+
+      const activos =
+        Number(
+          activosRows[0]?.c ?? 0
+        );
 
       const payload = {
         ya_estaba_activo: true,
+
         activos,
-        max_participantes: maxParticipantes,
+
+        max_participantes:
+          maxParticipantes,
       };
 
       return NextResponse.json(
@@ -286,72 +450,136 @@ export async function POST(
       );
     }
 
-    const countRes = await db.execute({
-      sql: `
-        SELECT COUNT(*) AS c
-        FROM tarea_asignaciones
-        WHERE tarea_id = ?
-          AND estado = 'activo'
-      `,
-      args: [String(tareaId)],
-    });
+    /**
+     * =====================================================
+     * 📊 COMPROBAR CUPO
+     * =====================================================
+     */
+    const countRes =
+      await db.execute({
+        sql: `
+          SELECT COUNT(*) AS c
+          FROM tarea_asignaciones
+          WHERE tarea_id = ?
+            AND estado = 'activo'
+        `,
+        args: [
+          String(tareaId),
+        ],
+      });
 
-    const countRows = castRows<CountRow>(countRes.rows);
-    const activos = Number(countRows[0]?.c ?? 0);
+    const countRows =
+      castRows<CountRow>(
+        countRes.rows
+      );
 
-    if (activos >= maxParticipantes) {
+    const activos =
+      Number(
+        countRows[0]?.c ?? 0
+      );
+
+    if (
+      activos >= maxParticipantes
+    ) {
       return NextResponse.json(
-        { ok: false, error: 'Cupo lleno' },
+        {
+          ok: false,
+          error: 'Cupo lleno',
+        },
         { status: 409 }
       );
     }
 
-    const previaRes = await db.execute({
-      sql: `
-        SELECT id
-        FROM tarea_asignaciones
-        WHERE tarea_id = ?
-          AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-        ORDER BY creado_en DESC
-        LIMIT 1
-      `,
-      args: [String(tareaId), userId],
-    });
+    /**
+     * =====================================================
+     * ♻️ BUSCAR ASIGNACIÓN ANTERIOR
+     * =====================================================
+     *
+     * Puede existir una asignación cancelada
+     * anteriormente.
+     */
+    const previaRes =
+      await db.execute({
+        sql: `
+          SELECT id
+          FROM tarea_asignaciones
+          WHERE tarea_id = ?
+            AND CAST(usuario_id AS TEXT)
+              = CAST(? AS TEXT)
+          ORDER BY creado_en DESC
+          LIMIT 1
+        `,
+        args: [
+          String(tareaId),
+          userId,
+        ],
+      });
 
-    const previaRows = castRows<IdRow>(previaRes.rows);
-    const asignacionPrevia = previaRows[0];
+    const previaRows =
+      castRows<IdRow>(
+        previaRes.rows
+      );
 
+    const asignacionPrevia =
+      previaRows[0];
+
+    /**
+     * =====================================================
+     * ♻️ REACTIVAR ASIGNACIÓN
+     * =====================================================
+     */
     if (asignacionPrevia) {
       await db.execute({
         sql: `
           UPDATE tarea_asignaciones
-          SET estado = 'activo',
-              seleccionado_en = ?,
-              iniciado_en = NULL,
-              completado_en = NULL,
-              cancelado_en = NULL
+          SET
+            estado = 'activo',
+            seleccionado_en = ?,
+            iniciado_en = NULL,
+            completado_en = NULL,
+            cancelado_en = NULL
           WHERE id = ?
         `,
-        args: [now, String(asignacionPrevia.id)],
+        args: [
+          now,
+          String(
+            asignacionPrevia.id
+          ),
+        ],
       });
 
-      const activosLuegoRes = await db.execute({
-        sql: `
-          SELECT COUNT(*) AS c
-          FROM tarea_asignaciones
-          WHERE tarea_id = ?
-            AND estado = 'activo'
-        `,
-        args: [String(tareaId)],
-      });
+      const activosLuegoRes =
+        await db.execute({
+          sql: `
+            SELECT COUNT(*) AS c
+            FROM tarea_asignaciones
+            WHERE tarea_id = ?
+              AND estado = 'activo'
+          `,
+          args: [
+            String(tareaId),
+          ],
+        });
 
-      const activosLuegoRows = castRows<CountRow>(activosLuegoRes.rows);
-      const activosLuego = Number(activosLuegoRows[0]?.c ?? 0);
+      const activosLuegoRows =
+        castRows<CountRow>(
+          activosLuegoRes.rows
+        );
+
+      const activosLuego =
+        Number(
+          activosLuegoRows[0]?.c ??
+            0
+        );
 
       const payload = {
         reactivada: true,
-        activos: activosLuego,
-        max_participantes: maxParticipantes,
+
+        activos:
+          activosLuego,
+
+        max_participantes:
+          maxParticipantes,
       };
 
       return NextResponse.json(
@@ -363,6 +591,19 @@ export async function POST(
         { status: 200 }
       );
     }
+
+    /**
+     * =====================================================
+     * ➕ CREAR NUEVA ASIGNACIÓN
+     * =====================================================
+     *
+     * IMPORTANTE:
+     *
+     * iniciado_en queda NULL porque seleccionar
+     * no significa comenzar a trabajar.
+     */
+    const asignacionId =
+      randomUUID();
 
     await db.execute({
       sql: `
@@ -375,57 +616,121 @@ export async function POST(
           creado_en,
           seleccionado_en
         )
-        VALUES (?, ?, ?, 'miembro', 'activo', ?, ?)
+        VALUES (
+          ?,
+          ?,
+          ?,
+          'miembro',
+          'activo',
+          ?,
+          ?
+        )
       `,
-      args: [randomUUID(), String(tareaId), userId, now, now],
+      args: [
+        asignacionId,
+        String(tareaId),
+        userId,
+        now,
+        now,
+      ],
     });
 
-    const activosFinalRes = await db.execute({
-      sql: `
-        SELECT COUNT(*) AS c
-        FROM tarea_asignaciones
-        WHERE tarea_id = ?
-          AND estado = 'activo'
-      `,
-      args: [String(tareaId)],
-    });
+    /**
+     * =====================================================
+     * 📊 RECALCULAR PARTICIPANTES
+     * =====================================================
+     */
+    const activosFinalRes =
+      await db.execute({
+        sql: `
+          SELECT COUNT(*) AS c
+          FROM tarea_asignaciones
+          WHERE tarea_id = ?
+            AND estado = 'activo'
+        `,
+        args: [
+          String(tareaId),
+        ],
+      });
 
-    const activosFinalRows = castRows<CountRow>(activosFinalRes.rows);
-    const activosFinal = Number(activosFinalRows[0]?.c ?? 0);
+    const activosFinalRows =
+      castRows<CountRow>(
+        activosFinalRes.rows
+      );
+
+    const activosFinal =
+      Number(
+        activosFinalRows[0]?.c ??
+          0
+      );
 
     const payload = {
-      activos: activosFinal,
-      max_participantes: maxParticipantes,
+      asignacion_id:
+        asignacionId,
+
+      activos:
+        activosFinal,
+
+      max_participantes:
+        maxParticipantes,
     };
 
+    /**
+     * =====================================================
+     * ✅ RESPUESTA
+     * =====================================================
+     */
     return NextResponse.json(
       {
         ok: true,
+
+        message:
+          'Tarea seleccionada correctamente',
+
         data: payload,
         ...payload,
       },
       { status: 200 }
     );
-  } catch (e: any) {
-    const msg = e?.message ?? String(e);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(error);
 
+    /**
+     * Puede ocurrir si dos solicitudes intentan
+     * crear la misma asignación simultáneamente.
+     */
     if (
-      msg.toLowerCase().includes('unique') ||
-      msg.toLowerCase().includes('constraint')
+      message
+        .toLowerCase()
+        .includes('unique') ||
+      message
+        .toLowerCase()
+        .includes('constraint')
     ) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Ya tienes una selección activa o el cupo fue ocupado al mismo tiempo',
+          error:
+            'Ya tienes una selección activa o el cupo fue ocupado al mismo tiempo',
         },
         { status: 409 }
       );
     }
 
-    console.error('POST seleccionar error:', e);
+    console.error(
+      'POST /api/proyectos/[id]/tareas/[tareaId]/seleccionar error:',
+      error
+    );
 
     return NextResponse.json(
-      { ok: false, error: 'Error interno del servidor' },
+      {
+        ok: false,
+        error:
+          'Error interno del servidor',
+      },
       { status: 500 }
     );
   }

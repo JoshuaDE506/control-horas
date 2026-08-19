@@ -1,11 +1,24 @@
-//components/InformeModal.tsx
+// components/InformeModal.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 
-export type RolUsuario = 'admin' | 'jefe' | 'colaborador' | 'owner' | 'miembro';
-export type TareaEstado = 'todo' | 'in-progress' | 'review' | 'completed';
-export type TipoInforme = 'avance' | 'final';
+export type RolUsuario =
+  | 'admin'
+  | 'jefe'
+  | 'colaborador'
+  | 'owner'
+  | 'miembro';
+
+export type TareaEstado =
+  | 'todo'
+  | 'in-progress'
+  | 'review'
+  | 'completed';
+
+export type TipoInforme =
+  | 'avance'
+  | 'final';
 
 export type InformeExistente = {
   id?: string;
@@ -52,100 +65,177 @@ type InformeApiRow = {
   usuario_apellido?: string | null;
 };
 
-function puedeRevisar(rol: RolUsuario) {
-  return rol === 'admin' || rol === 'owner';
+function puedeRevisar(
+  rol: RolUsuario
+) {
+  return (
+    rol === 'admin' ||
+    rol === 'owner'
+  );
 }
 
-function formatFecha(iso?: string) {
+function formatFecha(
+  iso?: string
+) {
   if (!iso) return '';
-  return new Date(iso).toLocaleDateString('es-CR', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+
+  const date = new Date(iso);
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return '';
+  }
+
+  return date.toLocaleDateString(
+    'es-CR',
+    {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }
+  );
 }
 
-function getEstadoBadge(estado: TareaEstado): EstadoBadge {
+function getEstadoBadge(
+  estado: TareaEstado
+): EstadoBadge {
   switch (estado) {
     case 'todo':
       return {
         label: 'Pendiente',
         color: 'text-slate-300',
         bg: 'bg-slate-500/10',
-        border: 'border-slate-500/25',
+        border:
+          'border-slate-500/25',
         dot: 'bg-slate-400',
       };
+
     case 'in-progress':
       return {
         label: 'En progreso',
         color: 'text-cyan-300',
         bg: 'bg-cyan-500/10',
-        border: 'border-cyan-500/25',
+        border:
+          'border-cyan-500/25',
         dot: 'bg-cyan-400',
       };
+
     case 'review':
       return {
-        label: 'En review',
+        label: 'En revisión',
         color: 'text-amber-300',
         bg: 'bg-amber-500/10',
-        border: 'border-amber-500/25',
+        border:
+          'border-amber-500/25',
         dot: 'bg-amber-400',
       };
+
     case 'completed':
       return {
         label: 'Completada',
-        color: 'text-emerald-300',
-        bg: 'bg-emerald-500/10',
-        border: 'border-emerald-500/25',
-        dot: 'bg-emerald-400',
+        color:
+          'text-emerald-300',
+        bg:
+          'bg-emerald-500/10',
+        border:
+          'border-emerald-500/25',
+        dot:
+          'bg-emerald-400',
       };
   }
 }
 
-function getTipoLabel(tipo: TipoInforme) {
-  return tipo === 'final' ? 'Informe final' : 'Informe de avance';
+function getTipoLabel(
+  tipo: TipoInforme
+) {
+  return tipo === 'final'
+    ? 'Informe final'
+    : 'Informe de avance';
 }
 
-function detectUrlKind(url?: string | null): 'imagen' | 'pdf' | 'otro' | null {
+function detectUrlKind(
+  url?: string | null
+):
+  | 'imagen'
+  | 'pdf'
+  | 'otro'
+  | null {
   if (!url) return null;
 
-  const v = url.toLowerCase();
+  const sinQuery =
+    url.split('?')[0]
+      ?.split('#')[0]
+      ?.toLowerCase() ?? '';
 
   if (
-    v.endsWith('.jpg') ||
-    v.endsWith('.jpeg') ||
-    v.endsWith('.png') ||
-    v.endsWith('.webp') ||
-    v.endsWith('.gif') ||
-    v.endsWith('.svg')
+    sinQuery.endsWith('.jpg') ||
+    sinQuery.endsWith('.jpeg') ||
+    sinQuery.endsWith('.png') ||
+    sinQuery.endsWith('.webp') ||
+    sinQuery.endsWith('.gif') ||
+    sinQuery.endsWith('.svg')
   ) {
     return 'imagen';
   }
 
-  if (v.endsWith('.pdf')) return 'pdf';
+  if (
+    sinQuery.endsWith('.pdf')
+  ) {
+    return 'pdf';
+  }
 
   return 'otro';
 }
 
-function mapInformeApiRow(row: InformeApiRow): InformeExistente {
+function mapInformeApiRow(
+  row: InformeApiRow
+): InformeExistente {
   const nombre =
     row.creado_por?.trim() ||
-    [row.usuario_nombre?.trim(), row.usuario_apellido?.trim()]
+    [
+      row.usuario_nombre?.trim(),
+      row.usuario_apellido?.trim(),
+    ]
       .filter(Boolean)
       .join(' ')
       .trim() ||
     undefined;
 
   return {
-    id: row.id ? String(row.id) : undefined,
-    tipo: row.tipo === 'avance' ? 'avance' : 'final',
-    titulo: row.titulo?.trim() || '',
-    descripcion: row.descripcion?.trim() || '',
-    url_archivo: row.url_archivo ?? null,
-    creado_por: nombre,
-    fecha_creacion: row.fecha_creacion ?? row.creado_en ?? undefined,
+    id:
+      row.id != null
+        ? String(row.id)
+        : undefined,
+
+    tipo:
+      row.tipo === 'avance'
+        ? 'avance'
+        : 'final',
+
+    titulo:
+      row.titulo?.trim() ||
+      '',
+
+    descripcion:
+      row.descripcion?.trim() ||
+      '',
+
+    url_archivo:
+      row.url_archivo ??
+      null,
+
+    creado_por:
+      nombre,
+
+    fecha_creacion:
+      row.fecha_creacion ??
+      row.creado_en ??
+      undefined,
   };
 }
 
@@ -158,15 +248,30 @@ function Lightbox({
   nombre: string;
   onClose: () => void;
 }) {
-  const kind = detectUrlKind(url);
+  const kind =
+    detectUrlKind(url);
 
   useEffect(() => {
-    function handler(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+    function handler(
+      e: KeyboardEvent
+    ) {
+      if (
+        e.key === 'Escape'
+      ) {
+        onClose();
+      }
     }
 
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener(
+      'keydown',
+      handler
+    );
+
+    return () =>
+      window.removeEventListener(
+        'keydown',
+        handler
+      );
   }, [onClose]);
 
   return (
@@ -178,7 +283,9 @@ function Lightbox({
 
       <div
         className="relative z-10 flex max-h-[92vh] w-full max-w-5xl flex-col items-center"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) =>
+          e.stopPropagation()
+        }
       >
         {kind === 'imagen' ? (
           <img
@@ -204,13 +311,17 @@ function Lightbox({
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={1.5}
+                  strokeWidth={
+                    1.5
+                  }
                   d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
                 />
               </svg>
             </div>
 
-            <p className="max-w-full text-center font-medium text-white break-words">{nombre}</p>
+            <p className="max-w-full text-center font-medium text-white break-words">
+              {nombre}
+            </p>
 
             <a
               href={url}
@@ -229,6 +340,7 @@ function Lightbox({
       </div>
 
       <button
+        type="button"
         onClick={onClose}
         className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/12 bg-white/8 text-white transition-all hover:bg-white/15 sm:right-4 sm:top-4"
       >
@@ -254,19 +366,55 @@ function PanelRevision({
   onAprobar,
   onRechazar,
 }: {
-  onAprobar: (comentario: string) => Promise<void>;
-  onRechazar: (comentario: string) => Promise<void>;
+  onAprobar: (
+    comentario: string
+  ) => Promise<void>;
+
+  onRechazar: (
+    comentario: string
+  ) => Promise<void>;
 }) {
-  const [accion, setAccion] = useState<'aprobar' | 'rechazar' | null>(null);
-  const [comentario, setComentario] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [
+    accion,
+    setAccion,
+  ] = useState<
+    'aprobar' |
+    'rechazar' |
+    null
+  >(null);
+
+  const [
+    comentario,
+    setComentario,
+  ] = useState('');
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState('');
 
   async function confirmar() {
-    if (!accion) return;
+    if (
+      !accion ||
+      loading
+    ) {
+      return;
+    }
 
-    if (accion === 'rechazar' && !comentario.trim()) {
-      setError('El motivo de rechazo es obligatorio.');
+    if (
+      accion ===
+        'rechazar' &&
+      !comentario.trim()
+    ) {
+      setError(
+        'El motivo de rechazo es obligatorio.'
+      );
+
       return;
     }
 
@@ -274,16 +422,26 @@ function PanelRevision({
     setError('');
 
     try {
-      if (accion === 'aprobar') {
-        await onAprobar(comentario.trim());
+      if (
+        accion === 'aprobar'
+      ) {
+        await onAprobar(
+          comentario.trim()
+        );
       } else {
-        await onRechazar(comentario.trim());
+        await onRechazar(
+          comentario.trim()
+        );
       }
 
       setAccion(null);
       setComentario('');
-    } catch (e: any) {
-      setError(e?.message ?? 'Error al procesar la revisión.');
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Error al procesar la revisión.'
+      );
     } finally {
       setLoading(false);
     }
@@ -308,7 +466,9 @@ function PanelRevision({
           </svg>
         </div>
 
-        <span className="text-sm font-semibold text-white">Panel de revisión</span>
+        <span className="text-sm font-semibold text-white">
+          Panel de revisión
+        </span>
 
         <span className="ml-0 sm:ml-auto rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-400">
           Admin / Owner
@@ -319,8 +479,12 @@ function PanelRevision({
         {!accion ? (
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
+              type="button"
               onClick={() => {
-                setAccion('aprobar');
+                setAccion(
+                  'aprobar'
+                );
+
                 setError('');
               }}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 py-2.5 text-sm font-semibold text-emerald-400 transition-all hover:bg-emerald-500/20"
@@ -338,12 +502,17 @@ function PanelRevision({
                   d="M5 13l4 4L19 7"
                 />
               </svg>
+
               Aprobar tarea
             </button>
 
             <button
+              type="button"
               onClick={() => {
-                setAccion('rechazar');
+                setAccion(
+                  'rechazar'
+                );
+
                 setError('');
               }}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 py-2.5 text-sm font-semibold text-red-400 transition-all hover:bg-red-500/20"
@@ -361,6 +530,7 @@ function PanelRevision({
                   d="M6 18L18 6M6 6l12 12"
                 />
               </svg>
+
               Rechazar tarea
             </button>
           </div>
@@ -368,22 +538,31 @@ function PanelRevision({
           <div className="space-y-3">
             <div
               className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
-                accion === 'aprobar'
+                accion ===
+                'aprobar'
                   ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'
                   : 'border-red-500/25 bg-red-500/10 text-red-400'
               }`}
             >
               <div
                 className={`h-1.5 w-1.5 rounded-full ${
-                  accion === 'aprobar' ? 'bg-emerald-400' : 'bg-red-400'
+                  accion ===
+                  'aprobar'
+                    ? 'bg-emerald-400'
+                    : 'bg-red-400'
                 }`}
               />
-              {accion === 'aprobar' ? 'Aprobando tarea' : 'Rechazando tarea'}
+
+              {accion ===
+              'aprobar'
+                ? 'Aprobando tarea'
+                : 'Rechazando tarea'}
             </div>
 
             <div className="space-y-1.5">
               <label className="text-[10px] font-medium uppercase tracking-widest text-slate-500">
-                {accion === 'rechazar'
+                {accion ===
+                'rechazar'
                   ? 'Motivo de rechazo *'
                   : 'Comentario (opcional)'}
               </label>
@@ -391,49 +570,79 @@ function PanelRevision({
               <textarea
                 rows={3}
                 placeholder={
-                  accion === 'rechazar'
+                  accion ===
+                  'rechazar'
                     ? 'Describe el motivo del rechazo…'
                     : 'Agrega un comentario de aprobación (opcional)…'
                 }
-                value={comentario}
-                onChange={(e) => {
-                  setComentario(e.target.value);
+                value={
+                  comentario
+                }
+                onChange={(
+                  e
+                ) => {
+                  setComentario(
+                    e.target.value
+                  );
+
                   setError('');
                 }}
-                disabled={loading}
+                disabled={
+                  loading
+                }
                 className="w-full resize-none rounded-xl border border-white/8 bg-slate-900/70 px-3 py-2.5 text-sm text-white placeholder-slate-700 transition-all focus:border-cyan-500/40 focus:outline-none disabled:opacity-50"
               />
             </div>
 
-            {error ? <p className="text-xs text-red-400">{error}</p> : null}
+            {error ? (
+              <p className="text-xs text-red-400">
+                {error}
+              </p>
+            ) : null}
 
             <div className="flex flex-col gap-2 sm:flex-row">
               <button
+                type="button"
                 onClick={() => {
-                  setAccion(null);
-                  setComentario('');
+                  setAccion(
+                    null
+                  );
+
+                  setComentario(
+                    ''
+                  );
+
                   setError('');
                 }}
-                disabled={loading}
+                disabled={
+                  loading
+                }
                 className="flex-1 rounded-xl border border-white/8 bg-slate-700/60 py-2 text-sm font-medium text-slate-300 transition-all hover:bg-slate-700 disabled:opacity-50"
               >
                 Cancelar
               </button>
 
               <button
-                onClick={confirmar}
-                disabled={loading}
+                type="button"
+                onClick={() =>
+                  void confirmar()
+                }
+                disabled={
+                  loading
+                }
                 className={`flex-1 rounded-xl py-2 text-sm font-semibold text-white transition-all disabled:opacity-50 ${
-                  accion === 'aprobar'
+                  accion ===
+                  'aprobar'
                     ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400'
                     : 'bg-red-500 shadow-lg shadow-red-500/20 hover:bg-red-400'
                 }`}
               >
                 {loading
                   ? 'Procesando...'
-                  : accion === 'aprobar'
-                    ? 'Confirmar aprobación'
-                    : 'Confirmar rechazo'}
+                  : accion ===
+                    'aprobar'
+                  ? 'Confirmar aprobación'
+                  : 'Confirmar rechazo'}
               </button>
             </div>
           </div>
@@ -456,128 +665,402 @@ export default function InformeModal({
   onClose,
   onSuccess,
 }: InformeModalProps) {
-  const badgeEstado = getEstadoBadge(tareaEstado);
+  const badgeEstado =
+    getEstadoBadge(
+      tareaEstado
+    );
 
-  const [informeData, setInformeData] = useState<InformeExistente | null>(informe ?? null);
-  const [loadingInforme, setLoadingInforme] = useState(false);
+  const [
+    informeData,
+    setInformeData,
+  ] =
+    useState<InformeExistente | null>(
+      informe ?? null
+    );
 
-  const currentInforme = informeData || informe || null;
+  const [
+    loadingInforme,
+    setLoadingInforme,
+  ] = useState(false);
 
-  const [titulo, setTitulo] = useState(currentInforme?.titulo ?? '');
-  const [descripcion, setDescripcion] = useState(currentInforme?.descripcion ?? '');
-  const [archivoUrl, setArchivoUrl] = useState(currentInforme?.url_archivo ?? '');
-  const [saving, setSaving] = useState(false);
-  const [errorGlobal, setErrorGlobal] = useState('');
-  const [tabVista, setTabVista] = useState<'informe' | 'evidencia'>('informe');
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [comentarioRevisionActual, setComentarioRevisionActual] = useState<string | null>(
-    comentarioRevision ?? null
+  const currentInforme =
+    informeData ||
+    informe ||
+    null;
+
+  const [
+    titulo,
+    setTitulo,
+  ] = useState(
+    currentInforme?.titulo ??
+      ''
   );
 
-  const esRevisor = puedeRevisar(rolUsuario);
+  const [
+    descripcion,
+    setDescripcion,
+  ] = useState(
+    currentInforme?.descripcion ??
+      ''
+  );
 
-  const mostrarPanelRevision = esRevisor && tareaEstado === 'review';
-  const puedeEditar = tareaEstado === 'todo' || tareaEstado === 'in-progress';
+  const [
+    archivoUrl,
+    setArchivoUrl,
+  ] = useState(
+    currentInforme?.url_archivo ??
+      ''
+  );
 
-  const evidenciaKind = useMemo(() => detectUrlKind(archivoUrl), [archivoUrl]);
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
+
+  const [
+    errorGlobal,
+    setErrorGlobal,
+  ] = useState('');
+
+  const [
+    tabVista,
+    setTabVista,
+  ] = useState<
+    'informe' |
+    'evidencia'
+  >('informe');
+
+  const [
+    lightboxOpen,
+    setLightboxOpen,
+  ] = useState(false);
+
+  const [
+    comentarioRevisionActual,
+    setComentarioRevisionActual,
+  ] =
+    useState<string | null>(
+      comentarioRevision ??
+        null
+    );
+
+  const [
+    textAreaRows,
+    setTextAreaRows,
+  ] = useState(9);
+
+  const esRevisor =
+    puedeRevisar(
+      rolUsuario
+    );
+
+  const mostrarPanelRevision =
+    esRevisor &&
+    tareaEstado === 'review';
+
+  /*
+   * Los informes se redactan mientras
+   * la tarea está en progreso.
+   *
+   * Una tarea únicamente seleccionada
+   * todavía está en "todo" y no debe
+   * permitir enviar el informe.
+   */
+  const puedeEditar =
+    tareaEstado ===
+    'in-progress';
+
+  const evidenciaKind =
+    useMemo(
+      () =>
+        detectUrlKind(
+          archivoUrl
+        ),
+      [archivoUrl]
+    );
+
+  useEffect(() => {
+    const actualizarRows =
+      () => {
+        setTextAreaRows(
+          window.innerWidth <
+            640
+            ? 7
+            : 9
+        );
+      };
+
+    actualizarRows();
+
+    window.addEventListener(
+      'resize',
+      actualizarRows
+    );
+
+    return () =>
+      window.removeEventListener(
+        'resize',
+        actualizarRows
+      );
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
-    setInformeData(informe ?? null);
-    setComentarioRevisionActual(comentarioRevision ?? null);
-  }, [isOpen, informe, comentarioRevision]);
+
+    setInformeData(
+      informe ?? null
+    );
+
+    setComentarioRevisionActual(
+      comentarioRevision ??
+        null
+    );
+  }, [
+    isOpen,
+    informe,
+    comentarioRevision,
+  ]);
 
   useEffect(() => {
     if (!isOpen) return;
+
+    let cancelled = false;
 
     async function fetchInforme() {
       try {
-        setLoadingInforme(true);
-        setErrorGlobal('');
-
-        const res = await fetch(
-          `/api/proyectos/${proyectoId}/tareas/${tareaId}/informes`,
-          {
-            method: 'GET',
-            credentials: 'include',
-            cache: 'no-store',
-          }
+        setLoadingInforme(
+          true
         );
 
-        const data = await res.json().catch(() => null);
+        setErrorGlobal('');
+
+        const res =
+          await fetch(
+            `/api/proyectos/${proyectoId}/tareas/${tareaId}/informes`,
+            {
+              method:
+                'GET',
+              credentials:
+                'include',
+              cache:
+                'no-store',
+            }
+          );
+
+        const data =
+          await res
+            .json()
+            .catch(() => ({}));
 
         if (!res.ok) {
-          throw new Error(data?.error || 'No se pudieron cargar los informes');
+          throw new Error(
+            typeof data?.error ===
+              'string'
+              ? data.error
+              : 'No se pudieron cargar los informes'
+          );
         }
 
-        const lista = Array.isArray(data?.informes) ? data.informes : [];
-        const informeFinal = lista.find((item: InformeApiRow) => item?.tipo === 'final');
-        const informeMasReciente = informeFinal ?? lista[0] ?? null;
+        const lista =
+          Array.isArray(
+            data?.informes
+          )
+            ? data.informes
+            : Array.isArray(
+                data?.data
+                  ?.informes
+              )
+            ? data.data
+                .informes
+            : [];
 
-        if (informeMasReciente) {
-          setInformeData(mapInformeApiRow(informeMasReciente));
-        } else {
-          setInformeData(null);
+        /*
+         * Carga el informe del mismo
+         * tipo que está usando el modal.
+         *
+         * Si es final, no toma por error
+         * un informe de avance.
+         */
+        const informeCoincidente =
+          lista.find(
+            (
+              item: InformeApiRow
+            ) =>
+              item?.tipo ===
+              tipoInforme
+          ) ??
+          null;
+
+        if (!cancelled) {
+          if (
+            informeCoincidente
+          ) {
+            setInformeData(
+              mapInformeApiRow(
+                informeCoincidente
+              )
+            );
+          } else {
+            setInformeData(
+              null
+            );
+          }
+
+          setComentarioRevisionActual(
+            data?.meta
+              ?.comentario_revision ??
+              data?.data?.meta
+                ?.comentario_revision ??
+              comentarioRevision ??
+              null
+          );
         }
+      } catch (e) {
+        console.error(
+          'Error cargando informe:',
+          e
+        );
 
-        setComentarioRevisionActual(data?.meta?.comentario_revision ?? null);
-      } catch (e: any) {
-        console.error('Error cargando informe:', e);
-        setErrorGlobal((prev) => prev || e?.message || 'Error cargando el informe');
-        setInformeData(null);
-        setComentarioRevisionActual(null);
+        if (!cancelled) {
+          setErrorGlobal(
+            e instanceof Error
+              ? e.message
+              : 'Error cargando el informe'
+          );
+
+          setInformeData(
+            null
+          );
+        }
       } finally {
-        setLoadingInforme(false);
+        if (!cancelled) {
+          setLoadingInforme(
+            false
+          );
+        }
       }
     }
 
-    fetchInforme();
-  }, [isOpen, proyectoId, tareaId]);
+    void fetchInforme();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isOpen,
+    proyectoId,
+    tareaId,
+    tipoInforme,
+    comentarioRevision,
+  ]);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    const inf = informeData || informe || null;
+    const inf =
+      informeData ||
+      informe ||
+      null;
 
-    setTitulo(inf?.titulo ?? '');
-    setDescripcion(inf?.descripcion ?? '');
-    setArchivoUrl(inf?.url_archivo ?? '');
+    setTitulo(
+      inf?.titulo ?? ''
+    );
+
+    setDescripcion(
+      inf?.descripcion ?? ''
+    );
+
+    setArchivoUrl(
+      inf?.url_archivo ?? ''
+    );
+
     setErrorGlobal('');
     setTabVista('informe');
     setLightboxOpen(false);
-  }, [isOpen, informeData, informe]);
+  }, [
+    isOpen,
+    informeData,
+    informe,
+  ]);
 
   useEffect(() => {
-    function handler(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !lightboxOpen) onClose();
+    function handler(
+      e: KeyboardEvent
+    ) {
+      if (
+        e.key ===
+          'Escape' &&
+        !lightboxOpen &&
+        !saving
+      ) {
+        onClose();
+      }
     }
 
     if (isOpen) {
-      window.addEventListener('keydown', handler);
-      document.body.style.overflow = 'hidden';
+      window.addEventListener(
+        'keydown',
+        handler
+      );
+
+      document.body.style.overflow =
+        'hidden';
     }
 
     return () => {
-      window.removeEventListener('keydown', handler);
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen, lightboxOpen, onClose]);
+      window.removeEventListener(
+        'keydown',
+        handler
+      );
 
-  if (!isOpen) return null;
+      document.body.style.overflow =
+        'unset';
+    };
+  }, [
+    isOpen,
+    lightboxOpen,
+    saving,
+    onClose,
+  ]);
+
+  if (!isOpen) {
+    return null;
+  }
 
   async function handleGuardar() {
+    if (
+      saving ||
+      tareaEstado !==
+        'in-progress'
+    ) {
+      return;
+    }
+
     if (!titulo.trim()) {
-      setErrorGlobal('El título es obligatorio.');
+      setErrorGlobal(
+        'El título es obligatorio.'
+      );
+
       return;
     }
 
-    if (!descripcion.trim()) {
-      setErrorGlobal('La descripción del informe es obligatoria.');
+    if (
+      !descripcion.trim()
+    ) {
+      setErrorGlobal(
+        'La descripción del informe es obligatoria.'
+      );
+
       return;
     }
 
-    if (!archivoUrl.trim()) {
-      setErrorGlobal('Debes indicar la URL de la evidencia.');
+    if (
+      !archivoUrl.trim()
+    ) {
+      setErrorGlobal(
+        'Debes indicar la URL de la evidencia.'
+      );
+
       return;
     }
 
@@ -585,96 +1068,200 @@ export default function InformeModal({
     setErrorGlobal('');
 
     try {
-      const resInforme = await fetch(
-        `/api/proyectos/${proyectoId}/tareas/${tareaId}/informes`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            tipo: tipoInforme,
-            titulo: titulo.trim(),
-            descripcion: descripcion.trim(),
-            url_archivo: archivoUrl.trim(),
-          }),
-        }
-      );
-
-      const dataInforme = await resInforme.json().catch(() => null);
-
-      if (!resInforme.ok) {
-        throw new Error(dataInforme?.error || 'No se pudo guardar el informe');
-      }
-
-      if (tipoInforme === 'final') {
-        const resCompletar = await fetch(
-          `/api/proyectos/${proyectoId}/tareas/${tareaId}/completar`,
+      const resInforme =
+        await fetch(
+          `/api/proyectos/${proyectoId}/tareas/${tareaId}/informes`,
           {
-            method: 'POST',
-            credentials: 'include',
+            method:
+              'POST',
+
+            headers: {
+              'Content-Type':
+                'application/json',
+            },
+
+            credentials:
+              'include',
+
+            body:
+              JSON.stringify({
+                tipo:
+                  tipoInforme,
+
+                titulo:
+                  titulo.trim(),
+
+                descripcion:
+                  descripcion.trim(),
+
+                url_archivo:
+                  archivoUrl.trim(),
+              }),
           }
         );
 
-        const dataCompletar = await resCompletar.json().catch(() => null);
+      const dataInforme =
+        await resInforme
+          .json()
+          .catch(() => ({}));
 
-        if (!resCompletar.ok) {
+      if (
+        !resInforme.ok
+      ) {
+        throw new Error(
+          typeof dataInforme?.error ===
+            'string'
+            ? dataInforme.error
+            : 'No se pudo guardar el informe'
+        );
+      }
+
+      /*
+       * El informe final no cambia
+       * directamente el estado.
+       *
+       * Después de guardarlo se llama
+       * /completar para:
+       *
+       * in-progress -> review
+       * y detener/finalizar el bloque
+       * actual de registro_horas.
+       */
+      if (
+        tipoInforme ===
+        'final'
+      ) {
+        const resCompletar =
+          await fetch(
+            `/api/proyectos/${proyectoId}/tareas/${tareaId}/completar`,
+            {
+              method:
+                'POST',
+              credentials:
+                'include',
+            }
+          );
+
+        const dataCompletar =
+          await resCompletar
+            .json()
+            .catch(() => ({}));
+
+        if (
+          !resCompletar.ok
+        ) {
           throw new Error(
-            dataCompletar?.error || 'No se pudo enviar la tarea a review'
+            typeof dataCompletar?.error ===
+              'string'
+              ? dataCompletar.error
+              : 'No se pudo enviar la tarea a revisión'
           );
         }
       }
 
       await onSuccess?.();
+
       onClose();
-    } catch (e: any) {
-      setErrorGlobal(e?.message ?? 'Error al guardar el informe.');
+    } catch (e) {
+      setErrorGlobal(
+        e instanceof Error
+          ? e.message
+          : 'Error al guardar el informe.'
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleAprobar(comentario: string) {
-    const res = await fetch(
-      `/api/proyectos/${proyectoId}/tareas/${tareaId}/aprobar`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ comentario }),
-      }
-    );
+  async function handleAprobar(
+    comentario: string
+  ) {
+    const res =
+      await fetch(
+        `/api/proyectos/${proyectoId}/tareas/${tareaId}/aprobar`,
+        {
+          method: 'POST',
 
-    const data = await res.json().catch(() => null);
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+
+          credentials:
+            'include',
+
+          body:
+            JSON.stringify({
+              comentario:
+                comentario.trim(),
+            }),
+        }
+      );
+
+    const data =
+      await res
+        .json()
+        .catch(() => ({}));
 
     if (!res.ok) {
-      throw new Error(data?.error || 'No se pudo aprobar la tarea');
+      throw new Error(
+        typeof data?.error ===
+          'string'
+          ? data.error
+          : 'No se pudo aprobar la tarea'
+      );
     }
 
     await onSuccess?.();
     onClose();
   }
 
-  async function handleRechazar(comentario: string) {
-    const res = await fetch(
-      `/api/proyectos/${proyectoId}/tareas/${tareaId}/rechazar`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ comentario }),
-      }
-    );
+  async function handleRechazar(
+    comentario: string
+  ) {
+    const motivo =
+      comentario.trim();
 
-    const data = await res.json().catch(() => null);
+    if (!motivo) {
+      throw new Error(
+        'El motivo de rechazo es obligatorio.'
+      );
+    }
+
+    const res =
+      await fetch(
+        `/api/proyectos/${proyectoId}/tareas/${tareaId}/rechazar`,
+        {
+          method: 'POST',
+
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+
+          credentials:
+            'include',
+
+          body:
+            JSON.stringify({
+              comentario:
+                motivo,
+            }),
+        }
+      );
+
+    const data =
+      await res
+        .json()
+        .catch(() => ({}));
 
     if (!res.ok) {
-      throw new Error(data?.error || 'No se pudo rechazar la tarea');
+      throw new Error(
+        typeof data?.error ===
+          'string'
+          ? data.error
+          : 'No se pudo rechazar la tarea'
+      );
     }
 
     await onSuccess?.();
@@ -683,18 +1270,35 @@ export default function InformeModal({
 
   return (
     <>
-      {lightboxOpen && archivoUrl ? (
+      {lightboxOpen &&
+      archivoUrl ? (
         <Lightbox
           url={archivoUrl}
-          nombre={titulo || 'Evidencia'}
-          onClose={() => setLightboxOpen(false)}
+          nombre={
+            titulo ||
+            'Evidencia'
+          }
+          onClose={() =>
+            setLightboxOpen(
+              false
+            )
+          }
         />
       ) : null}
 
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
         <div
           className="absolute inset-0 bg-black/65 backdrop-blur-sm"
-          onClick={() => !lightboxOpen && onClose()}
+          onClick={() => {
+            if (
+              lightboxOpen ||
+              saving
+            ) {
+              return;
+            }
+
+            onClose();
+          }}
         />
 
         <div className="relative flex max-h-[94vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl sm:rounded-3xl border border-white/10 bg-slate-800 shadow-2xl shadow-black/60">
@@ -705,29 +1309,44 @@ export default function InformeModal({
               <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base sm:text-lg font-bold leading-tight text-white break-words">
-                    {getTipoLabel(currentInforme?.tipo ?? tipoInforme)}
+                    {getTipoLabel(
+                      currentInforme?.tipo ??
+                        tipoInforme
+                    )}
                   </h2>
 
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${badgeEstado.bg} ${badgeEstado.border} ${badgeEstado.color}`}
                   >
-                    <span className={`h-1.5 w-1.5 rounded-full ${badgeEstado.dot}`} />
-                    {badgeEstado.label}
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${badgeEstado.dot}`}
+                    />
+
+                    {
+                      badgeEstado.label
+                    }
                   </span>
 
                   <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-cyan-300">
-                    {(currentInforme?.tipo ?? tipoInforme) === 'final'
+                    {(currentInforme?.tipo ??
+                      tipoInforme) ===
+                    'final'
                       ? 'Final'
                       : 'Avance'}
                   </span>
                 </div>
 
-                {(currentInforme?.creado_por || nombreUsuario) && (
+                {(currentInforme?.creado_por ||
+                  nombreUsuario) && (
                   <p className="text-xs text-slate-500 break-words">
-                    {currentInforme?.creado_por || nombreUsuario}
+                    {currentInforme?.creado_por ||
+                      nombreUsuario}
+
                     {currentInforme?.fecha_creacion ? (
                       <span className="block sm:inline sm:ml-2 text-slate-600">
-                        {formatFecha(currentInforme.fecha_creacion)}
+                        {formatFecha(
+                          currentInforme.fecha_creacion
+                        )}
                       </span>
                     ) : null}
                   </p>
@@ -735,8 +1354,20 @@ export default function InformeModal({
               </div>
 
               <button
-                onClick={onClose}
-                className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-slate-700/60 text-slate-400 transition-all hover:bg-slate-700 hover:text-white"
+                type="button"
+                onClick={() => {
+                  if (
+                    saving
+                  ) {
+                    return;
+                  }
+
+                  onClose();
+                }}
+                disabled={
+                  saving
+                }
+                className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-slate-700/60 text-slate-400 transition-all hover:bg-slate-700 hover:text-white disabled:opacity-50"
               >
                 <svg
                   className="h-4 w-4"
@@ -758,14 +1389,32 @@ export default function InformeModal({
           <div className="shrink-0 px-4 pt-3 sm:px-6">
             <div className="flex w-full overflow-x-auto pb-1 sm:pb-0 items-center gap-1">
               {[
-                { id: 'informe', label: 'Informe' },
-                { id: 'evidencia', label: 'Evidencia' },
+                {
+                  id:
+                    'informe',
+                  label:
+                    'Informe',
+                },
+                {
+                  id:
+                    'evidencia',
+                  label:
+                    'Evidencia',
+                },
               ].map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => setTabVista(t.id as 'informe' | 'evidencia')}
+                  type="button"
+                  onClick={() =>
+                    setTabVista(
+                      t.id as
+                        | 'informe'
+                        | 'evidencia'
+                    )
+                  }
                   className={`whitespace-nowrap rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                    tabVista === t.id
+                    tabVista ===
+                    t.id
                       ? 'border border-white/10 bg-slate-700 text-white'
                       : 'text-slate-500 hover:text-slate-300'
                   }`}
@@ -799,11 +1448,15 @@ export default function InformeModal({
                     d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
                   />
                 </svg>
-                <span className="break-words">{errorGlobal}</span>
+
+                <span className="break-words">
+                  {errorGlobal}
+                </span>
               </div>
             ) : null}
 
-            {tabVista === 'informe' ? (
+            {tabVista ===
+            'informe' ? (
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-medium uppercase tracking-widest text-slate-500">
@@ -814,17 +1467,29 @@ export default function InformeModal({
                     <input
                       type="text"
                       placeholder="Escribe un título claro para el informe…"
-                      value={titulo}
-                      onChange={(e) => {
-                        setTitulo(e.target.value);
-                        setErrorGlobal('');
+                      value={
+                        titulo
+                      }
+                      onChange={(
+                        e
+                      ) => {
+                        setTitulo(
+                          e.target.value
+                        );
+
+                        setErrorGlobal(
+                          ''
+                        );
                       }}
-                      disabled={saving}
+                      disabled={
+                        saving
+                      }
                       className="w-full rounded-xl border border-white/8 bg-slate-900/60 px-3 py-2.5 text-sm text-white placeholder-slate-700 transition-all focus:border-cyan-500/40 focus:outline-none disabled:opacity-50"
                     />
                   ) : (
                     <p className="break-words text-base font-semibold text-white">
-                      {currentInforme?.titulo || 'Sin título'}
+                      {currentInforme?.titulo ||
+                        'Sin título'}
                     </p>
                   )}
                 </div>
@@ -836,20 +1501,35 @@ export default function InformeModal({
 
                   {puedeEditar ? (
                     <textarea
-                      rows={window.innerWidth < 640 ? 7 : 9}
+                      rows={
+                        textAreaRows
+                      }
                       placeholder="Describe lo realizado, resultados, observaciones y lo que entregas como evidencia…"
-                      value={descripcion}
-                      onChange={(e) => {
-                        setDescripcion(e.target.value);
-                        setErrorGlobal('');
+                      value={
+                        descripcion
+                      }
+                      onChange={(
+                        e
+                      ) => {
+                        setDescripcion(
+                          e.target.value
+                        );
+
+                        setErrorGlobal(
+                          ''
+                        );
                       }}
-                      disabled={saving}
+                      disabled={
+                        saving
+                      }
                       className="w-full resize-none rounded-xl border border-white/8 bg-slate-900/60 px-3 py-3 text-sm leading-relaxed text-white placeholder-slate-700 transition-all focus:border-cyan-500/40 focus:outline-none disabled:opacity-50"
                     />
                   ) : (
                     <div className="whitespace-pre-wrap break-words rounded-xl border border-white/6 bg-slate-900/40 px-4 py-4 text-sm leading-relaxed text-slate-300">
                       {currentInforme?.descripcion || (
-                        <span className="text-slate-600">Sin descripción</span>
+                        <span className="text-slate-600">
+                          Sin descripción
+                        </span>
                       )}
                     </div>
                   )}
@@ -857,17 +1537,27 @@ export default function InformeModal({
 
                 {mostrarPanelRevision ? (
                   <PanelRevision
-                    onAprobar={handleAprobar}
-                    onRechazar={handleRechazar}
+                    onAprobar={
+                      handleAprobar
+                    }
+                    onRechazar={
+                      handleRechazar
+                    }
                   />
                 ) : null}
 
-                {comentarioRevisionActual && !mostrarPanelRevision ? (
+                {comentarioRevisionActual &&
+                !mostrarPanelRevision ? (
                   <div className="space-y-1 rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-3.5">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-red-500">
                       Motivo del rechazo
                     </p>
-                    <p className="break-words text-sm text-red-300">{comentarioRevisionActual}</p>
+
+                    <p className="break-words text-sm text-red-300">
+                      {
+                        comentarioRevisionActual
+                      }
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -882,43 +1572,77 @@ export default function InformeModal({
                     <input
                       type="url"
                       placeholder="https://.../archivo.pdf"
-                      value={archivoUrl}
-                      onChange={(e) => {
-                        setArchivoUrl(e.target.value);
-                        setErrorGlobal('');
+                      value={
+                        archivoUrl
+                      }
+                      onChange={(
+                        e
+                      ) => {
+                        setArchivoUrl(
+                          e.target.value
+                        );
+
+                        setErrorGlobal(
+                          ''
+                        );
                       }}
-                      disabled={saving}
+                      disabled={
+                        saving
+                      }
                       className="w-full rounded-xl border border-white/8 bg-slate-900/60 px-3 py-2.5 text-sm text-white placeholder-slate-700 transition-all focus:border-cyan-500/40 focus:outline-none disabled:opacity-50"
                     />
 
                     <p className="text-xs text-slate-600 break-words">
                       Este modal usa la estructura actual del backend, que guarda una sola
-                      <code> url_archivo </code> por informe.
+                      <code>
+                        {' '}
+                        url_archivo{' '}
+                      </code>
+                      por informe.
                     </p>
                   </div>
                 ) : null}
 
                 {!archivoUrl ? (
                   <div className="py-8 text-center">
-                    <p className="text-sm text-slate-500">No hay evidencia adjunta.</p>
+                    <p className="text-sm text-slate-500">
+                      No hay evidencia adjunta.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     <div className="group relative overflow-hidden rounded-2xl border border-white/8 bg-slate-900/60">
-                      {evidenciaKind === 'imagen' ? (
+                      {evidenciaKind ===
+                      'imagen' ? (
                         <button
-                          onClick={() => setLightboxOpen(true)}
+                          type="button"
+                          onClick={() =>
+                            setLightboxOpen(
+                              true
+                            )
+                          }
                           className="w-full"
                         >
                           <img
-                            src={archivoUrl}
-                            alt={titulo || 'Evidencia'}
+                            src={
+                              archivoUrl
+                            }
+                            alt={
+                              titulo ||
+                              'Evidencia'
+                            }
                             className="max-h-[220px] sm:max-h-[320px] w-full object-cover"
                           />
                         </button>
-                      ) : evidenciaKind === 'pdf' ? (
+                      ) : evidenciaKind ===
+                        'pdf' ? (
                         <button
-                          onClick={() => setLightboxOpen(true)}
+                          type="button"
+                          onClick={() =>
+                            setLightboxOpen(
+                              true
+                            )
+                          }
                           className="flex w-full flex-col items-center gap-3 px-4 py-8 sm:px-6 sm:py-10"
                         >
                           <svg
@@ -930,10 +1654,13 @@ export default function InformeModal({
                             <path
                               strokeLinecap="round"
                               strokeLinejoin="round"
-                              strokeWidth={1.5}
+                              strokeWidth={
+                                1.5
+                              }
                               d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
                             />
                           </svg>
+
                           <span className="text-sm font-semibold text-red-400">
                             Abrir PDF
                           </span>
@@ -949,13 +1676,17 @@ export default function InformeModal({
                             <path
                               strokeLinecap="round"
                               strokeLinejoin="round"
-                              strokeWidth={1.5}
+                              strokeWidth={
+                                1.5
+                              }
                               d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
                             />
                           </svg>
 
                           <a
-                            href={archivoUrl}
+                            href={
+                              archivoUrl
+                            }
                             target="_blank"
                             rel="noreferrer"
                             className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-semibold text-cyan-400 transition-all hover:bg-cyan-500/20"
@@ -979,16 +1710,26 @@ export default function InformeModal({
             <div className="shrink-0 border-t border-white/8 bg-slate-800/80 px-4 py-4 sm:px-6">
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <button
-                  onClick={onClose}
-                  disabled={saving}
+                  type="button"
+                  onClick={
+                    onClose
+                  }
+                  disabled={
+                    saving
+                  }
                   className="w-full sm:w-auto rounded-xl border border-white/8 bg-slate-700/60 px-4 py-2 text-sm font-medium text-slate-300 transition-all hover:bg-slate-700 disabled:opacity-50"
                 >
                   Cancelar
                 </button>
 
                 <button
-                  onClick={handleGuardar}
-                  disabled={saving}
+                  type="button"
+                  onClick={() =>
+                    void handleGuardar()
+                  }
+                  disabled={
+                    saving
+                  }
                   className="flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all hover:opacity-90 disabled:opacity-50"
                 >
                   {saving ? (
@@ -1008,7 +1749,11 @@ export default function InformeModal({
                       />
                     </svg>
                   )}
-                  {tipoInforme === 'final' ? 'Enviar a review' : 'Guardar avance'}
+
+                  {tipoInforme ===
+                  'final'
+                    ? 'Enviar a revisión'
+                    : 'Guardar avance'}
                 </button>
               </div>
             </div>
@@ -1016,7 +1761,10 @@ export default function InformeModal({
             <div className="shrink-0 border-t border-white/8 px-4 py-4 sm:px-6">
               <div className="flex items-center justify-end">
                 <button
-                  onClick={onClose}
+                  type="button"
+                  onClick={
+                    onClose
+                  }
                   className="w-full sm:w-auto rounded-xl border border-white/8 bg-slate-700/60 px-5 py-2 text-sm font-medium text-slate-300 transition-all hover:bg-slate-700"
                 >
                   Cerrar

@@ -30,7 +30,6 @@ interface MiembroApi {
   nombre_completo?: string | null;
   email?: string | null;
   pais?: string | null;
-  pais?: string | null;
   fecha_union?: string | null;
   rol?: string | null;
   tareas_asignadas?: number | null;
@@ -43,8 +42,13 @@ interface UsuarioBusqueda {
   email: string;
 }
 
-function esMiembroProyecto(miembros: Miembro[], usuarioId: string | number) {
-  return miembros.some((m) => String(m.id) === String(usuarioId));
+function esMiembroProyecto(
+  miembros: Miembro[],
+  usuarioId: string | number
+) {
+  return miembros.some(
+    (m) => String(m.id) === String(usuarioId)
+  );
 }
 
 type CambioRolState = {
@@ -54,8 +58,13 @@ type CambioRolState = {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function getInitials(nombre: string, apellido?: string) {
-  return `${nombre?.[0] ?? ''}${apellido?.[0] ?? ''}`.toUpperCase() || '?';
+function getInitials(
+  nombre: string,
+  apellido?: string
+) {
+  return (
+    `${nombre?.[0] ?? ''}${apellido?.[0] ?? ''}`.toUpperCase() || '?'
+  );
 }
 
 function getAvatarColor(id: string) {
@@ -68,65 +77,151 @@ function getAvatarColor(id: string) {
     'from-cyan-600 to-sky-600',
     'from-fuchsia-600 to-purple-600',
   ];
-  const index = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+
+  const index = id
+    .split('')
+    .reduce(
+      (acc, c) => acc + c.charCodeAt(0),
+      0
+    );
+
   return colors[index % colors.length];
 }
 
 function formatFecha(fecha: string | null) {
   if (!fecha) return null;
-  return new Date(fecha).toLocaleDateString('es-ES', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+
+  return new Date(fecha).toLocaleDateString(
+    'es-ES',
+    {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }
+  );
 }
 
-function normalizarRol(valor: unknown): RolProyecto {
-  const v = String(valor ?? '').trim().toLowerCase();
-  if (v === 'owner' || v === 'dueño' || v === 'dueno') return 'owner';
-  if (v === 'admin' || v === 'administrador') return 'admin';
+function normalizarRol(
+  valor: unknown
+): RolProyecto {
+  const v = String(valor ?? '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    v === 'owner' ||
+    v === 'dueño' ||
+    v === 'dueno'
+  ) {
+    return 'owner';
+  }
+
+  if (
+    v === 'admin' ||
+    v === 'administrador'
+  ) {
+    return 'admin';
+  }
+
   return 'miembro';
 }
 
-function adaptarMiembro(row: MiembroApi): Miembro {
-  const nombre = String(row?.nombre ?? '');
-  const apellido = String(row?.apellido ?? '');
+function normalizarModoAcceso(
+  valor: unknown
+): ModoAcceso | null {
+  const v = String(valor ?? '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    v === 'publico' ||
+    v === 'solicitud' ||
+    v === 'privado'
+  ) {
+    return v;
+  }
+
+  return null;
+}
+
+function adaptarMiembro(
+  row: MiembroApi
+): Miembro {
+  const nombre = String(
+    row?.nombre ?? ''
+  );
+
+  const apellido = String(
+    row?.apellido ?? ''
+  );
+
   return {
     id: String(row?.id ?? ''),
+
     nombre,
+
     apellido,
+
     nombre_completo:
-      String(row?.nombre_completo ?? '').trim() || `${nombre} ${apellido}`.trim(),
-    email: String(row?.email ?? ''),
-    pais: row?.pais ?? row?.pais ?? null,
-    fecha_union: row?.fecha_union ?? null,
-    rol: normalizarRol(row?.rol),
-    tareas_asignadas: Number(row?.tareas_asignadas ?? 0),
+      String(
+        row?.nombre_completo ?? ''
+      ).trim() ||
+      `${nombre} ${apellido}`.trim(),
+
+    email: String(
+      row?.email ?? ''
+    ),
+
+    pais:
+      row?.pais ?? null,
+
+    fecha_union:
+      row?.fecha_union ?? null,
+
+    rol: normalizarRol(
+      row?.rol
+    ),
+
+    tareas_asignadas:
+      Number(
+        row?.tareas_asignadas ?? 0
+      ) || 0,
   };
 }
 
 const ROL_CONFIG: Record<
   RolProyecto,
-  { label: string; cls: string; activeCls: string; dot: string }
+  {
+    label: string;
+    cls: string;
+    activeCls: string;
+    dot: string;
+  }
 > = {
   owner: {
     label: 'Dueño',
-    cls: 'bg-purple-500/10 text-purple-300 border-purple-500/30',
+    cls:
+      'bg-purple-500/10 text-purple-300 border-purple-500/30',
     activeCls:
       'bg-purple-500/20 text-purple-200 border-purple-400/60 shadow-sm shadow-purple-500/20',
     dot: '#a78bfa',
   },
+
   admin: {
     label: 'Admin',
-    cls: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    cls:
+      'bg-blue-500/10 text-blue-400 border-blue-500/30',
     activeCls:
       'bg-blue-500/20 text-blue-200 border-blue-400/60 shadow-sm shadow-blue-500/20',
     dot: '#60a5fa',
   },
+
   miembro: {
     label: 'Miembro',
-    cls: 'bg-slate-500/10 text-slate-400 border-slate-500/30',
-    activeCls: 'bg-slate-600/30 text-slate-200 border-slate-400/50 shadow-sm',
+    cls:
+      'bg-slate-500/10 text-slate-400 border-slate-500/30',
+    activeCls:
+      'bg-slate-600/30 text-slate-200 border-slate-400/50 shadow-sm',
     dot: '#94a3b8',
   },
 };
@@ -138,12 +233,28 @@ const inputCls =
 
 const Ic = {
   arrow: () => (
-    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 12H5M12 5l-7 7 7 7" />
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 12H5M12 5l-7 7 7 7"
+      />
     </svg>
   ),
+
   users: () => (
-    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -152,18 +263,46 @@ const Ic = {
       />
     </svg>
   ),
+
   search: () => (
-    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+      />
     </svg>
   ),
+
   plus: () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 4v16m8-8H4"
+      />
     </svg>
   ),
+
   trash: () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -172,8 +311,14 @@ const Ic = {
       />
     </svg>
   ),
+
   shield: () => (
-    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -182,8 +327,13 @@ const Ic = {
       />
     </svg>
   ),
+
   warn: () => (
-    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+    <svg
+      className="h-5 w-5"
+      fill="currentColor"
+      viewBox="0 0 20 20"
+    >
       <path
         fillRule="evenodd"
         d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
@@ -191,8 +341,13 @@ const Ic = {
       />
     </svg>
   ),
+
   check: () => (
-    <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+    <svg
+      className="h-4 w-4"
+      fill="currentColor"
+      viewBox="0 0 20 20"
+    >
       <path
         fillRule="evenodd"
         d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -200,9 +355,21 @@ const Ic = {
       />
     </svg>
   ),
+
   globe: () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="10" strokeWidth={2} />
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        strokeWidth={2}
+      />
+
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -211,8 +378,14 @@ const Ic = {
       />
     </svg>
   ),
+
   calendar: () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -221,13 +394,30 @@ const Ic = {
       />
     </svg>
   ),
+
   x: () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M6 18L18 6M6 6l12 12"
+      />
     </svg>
   ),
+
   task: () => (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -236,13 +426,24 @@ const Ic = {
       />
     </svg>
   ),
+
   crown: () => (
-    <svg className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+    <svg
+      className="h-2.5 w-2.5 text-white"
+      fill="currentColor"
+      viewBox="0 0 20 20"
+    >
       <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
     </svg>
   ),
+
   userPlus: () => (
-    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -272,24 +473,41 @@ function Toast({
           ? 'border-green-500/30 bg-green-500/10 text-green-400'
           : 'border-red-500/30 bg-red-500/10 text-red-400'
       }
-      ${visible ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-2 opacity-0'}`}
+      ${
+        visible
+          ? 'translate-y-0 opacity-100'
+          : 'pointer-events-none -translate-y-2 opacity-0'
+      }`}
     >
-      {type === 'success' ? <Ic.check /> : <Ic.warn />}
-      <span className="break-words">{message}</span>
+      {type === 'success'
+        ? <Ic.check />
+        : <Ic.warn />}
+
+      <span className="break-words">
+        {message}
+      </span>
     </div>
   );
 }
 
-function RolBadge({ rol }: { rol: RolProyecto }) {
+function RolBadge({
+  rol,
+}: {
+  rol: RolProyecto;
+}) {
   const cfg = ROL_CONFIG[rol];
+
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold ${cfg.cls}`}
     >
       <span
         className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
-        style={{ background: cfg.dot }}
+        style={{
+          background: cfg.dot,
+        }}
       />
+
       {cfg.label}
     </span>
   );
@@ -302,34 +520,60 @@ function RolSwitcher({
 }: {
   rol: 'admin' | 'miembro';
   loading: boolean;
-  onSwitch: (r: 'admin' | 'miembro') => void;
+  onSwitch: (
+    r: 'admin' | 'miembro'
+  ) => void;
 }) {
   return (
     <div className="flex items-center gap-1 rounded-xl border border-slate-700/50 bg-slate-800/70 p-1">
-      {(['admin', 'miembro'] as const).map((opt) => {
-        const isActive = rol === opt;
-        const cfg = ROL_CONFIG[opt];
+      {(
+        ['admin', 'miembro'] as const
+      ).map((opt) => {
+        const isActive =
+          rol === opt;
+
+        const cfg =
+          ROL_CONFIG[opt];
+
         return (
           <button
             key={opt}
             type="button"
-            onClick={() => !isActive && !loading && onSwitch(opt)}
-            disabled={loading || isActive}
-            title={isActive ? `Rol actual: ${cfg.label}` : `Pasar a ${cfg.label}`}
+            onClick={() =>
+              !isActive &&
+              !loading &&
+              onSwitch(opt)
+            }
+            disabled={
+              loading ||
+              isActive
+            }
+            title={
+              isActive
+                ? `Rol actual: ${cfg.label}`
+                : `Pasar a ${cfg.label}`
+            }
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all duration-200 select-none ${
               isActive
                 ? cfg.activeCls
                 : 'border-transparent bg-transparent text-gray-400 hover:bg-slate-700/50 hover:text-gray-200'
             } disabled:cursor-default`}
           >
-            {loading && isActive ? (
+            {loading &&
+            isActive ? (
               <div className="h-3 w-3 animate-spin rounded-full border-2 border-current/30 border-t-current" />
             ) : (
               <span
                 className="h-1.5 w-1.5 flex-shrink-0 rounded-full"
-                style={{ background: isActive ? cfg.dot : '#4b5563' }}
+                style={{
+                  background:
+                    isActive
+                      ? cfg.dot
+                      : '#4b5563',
+                }}
               />
             )}
+
             {cfg.label}
           </button>
         );
@@ -351,22 +595,34 @@ function ChangeRoleModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const actualLabel = ROL_CONFIG[miembro.rol].label;
-  const nuevoLabel = ROL_CONFIG[nuevoRol].label;
+  const actualLabel =
+    ROL_CONFIG[miembro.rol].label;
+
+  const nuevoLabel =
+    ROL_CONFIG[nuevoRol].label;
 
   return (
     <div className="fixed inset-0 z-[310] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={!loading ? onCancel : undefined}
+        onClick={
+          !loading
+            ? onCancel
+            : undefined
+        }
       />
+
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-700/50 bg-slate-900 p-5 shadow-2xl sm:p-6">
         <div className="mb-5 flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-400">
             <Ic.shield />
           </div>
+
           <div>
-            <h3 className="text-base font-bold text-white">Cambiar rol del miembro</h3>
+            <h3 className="text-base font-bold text-white">
+              Cambiar rol del miembro
+            </h3>
+
             <p className="mt-0.5 text-xs text-gray-400">
               Estás a punto de cambiar los permisos dentro del proyecto.
             </p>
@@ -376,30 +632,55 @@ function ChangeRoleModal({
         <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-700/40 bg-slate-800/50 p-3">
           <div
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(
-              miembro.id,
+              miembro.id
             )} text-sm font-bold text-white`}
           >
-            {getInitials(miembro.nombre, miembro.apellido)}
+            {getInitials(
+              miembro.nombre,
+              miembro.apellido
+            )}
           </div>
+
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">
               {miembro.nombre_completo}
             </p>
-            <p className="truncate text-xs text-gray-400">{miembro.email}</p>
+
+            <p className="truncate text-xs text-gray-400">
+              {miembro.email}
+            </p>
           </div>
         </div>
 
         <div className="mb-5 rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
-          <p className="mb-2 text-xs text-gray-400">Rol actual → nuevo rol</p>
+          <p className="mb-2 text-xs text-gray-400">
+            Rol actual → nuevo rol
+          </p>
+
           <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
-            <RolBadge rol={miembro.rol} />
-            <span className="text-xs text-gray-500">→</span>
-            <RolBadge rol={nuevoRol} />
+            <RolBadge
+              rol={miembro.rol}
+            />
+
+            <span className="text-xs text-gray-500">
+              →
+            </span>
+
+            <RolBadge
+              rol={nuevoRol}
+            />
           </div>
+
           <p className="mt-3 text-xs text-gray-400">
             El usuario pasará de{' '}
-            <span className="font-semibold text-gray-200">{actualLabel}</span> a{' '}
-            <span className="font-semibold text-gray-200">{nuevoLabel}</span>.
+            <span className="font-semibold text-gray-200">
+              {actualLabel}
+            </span>{' '}
+            a{' '}
+            <span className="font-semibold text-gray-200">
+              {nuevoLabel}
+            </span>
+            .
           </p>
         </div>
 
@@ -416,6 +697,7 @@ function ChangeRoleModal({
           >
             Cancelar
           </button>
+
           <button
             type="button"
             onClick={onConfirm}
@@ -425,6 +707,7 @@ function ChangeRoleModal({
             {loading && (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
             )}
+
             Confirmar cambio
           </button>
         </div>
@@ -444,22 +727,34 @@ function RemoveMemberModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const n = miembro.tareas_asignadas ?? 0;
-  const tieneTareas = n > 0;
+  const n =
+    miembro.tareas_asignadas ?? 0;
+
+  const tieneTareas =
+    n > 0;
 
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={!loading ? onCancel : undefined}
+        onClick={
+          !loading
+            ? onCancel
+            : undefined
+        }
       />
+
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-700/50 bg-slate-900 p-5 shadow-2xl sm:p-6">
         <div className="mb-5 flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-400">
             <Ic.warn />
           </div>
+
           <div>
-            <h3 className="text-base font-bold text-white">Eliminar miembro</h3>
+            <h3 className="text-base font-bold text-white">
+              Eliminar miembro
+            </h3>
+
             <p className="mt-0.5 text-xs text-gray-400">
               Esta acción retira el acceso al proyecto
             </p>
@@ -469,18 +764,28 @@ function RemoveMemberModal({
         <div className="mb-4 flex items-center gap-3 rounded-xl border border-slate-700/40 bg-slate-800/50 p-3">
           <div
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(
-              miembro.id,
+              miembro.id
             )} text-sm font-bold text-white`}
           >
-            {getInitials(miembro.nombre, miembro.apellido)}
+            {getInitials(
+              miembro.nombre,
+              miembro.apellido
+            )}
           </div>
+
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-white">
               {miembro.nombre_completo}
             </p>
-            <p className="truncate text-xs text-gray-400">{miembro.email}</p>
+
+            <p className="truncate text-xs text-gray-400">
+              {miembro.email}
+            </p>
           </div>
-          <RolBadge rol={miembro.rol} />
+
+          <RolBadge
+            rol={miembro.rol}
+          />
         </div>
 
         {tieneTareas ? (
@@ -489,10 +794,15 @@ function RemoveMemberModal({
               <span className="mt-0.5 flex-shrink-0 text-amber-400">
                 <Ic.task />
               </span>
+
               <div>
                 <p className="text-sm font-semibold text-amber-300">
-                  {n} tarea{n > 1 ? 's' : ''} asignada{n > 1 ? 's' : ''}
+                  {n} tarea
+                  {n > 1 ? 's' : ''}{' '}
+                  asignada
+                  {n > 1 ? 's' : ''}
                 </p>
+
                 <p className="mt-1 text-xs leading-relaxed text-amber-400/80">
                   Las tareas se conservarán en el proyecto pero quedarán sin asignar.
                 </p>
@@ -521,6 +831,7 @@ function RemoveMemberModal({
           >
             Cancelar
           </button>
+
           <button
             type="button"
             onClick={onConfirm}
@@ -530,7 +841,10 @@ function RemoveMemberModal({
             {loading && (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white" />
             )}
-            {tieneTareas ? 'Eliminar y liberar tareas' : 'Eliminar del proyecto'}
+
+            {tieneTareas
+              ? 'Eliminar y liberar tareas'
+              : 'Eliminar del proyecto'}
           </button>
         </div>
       </div>
@@ -558,27 +872,41 @@ function MiembroCard({
   rolLoad: boolean;
   delLoad: boolean;
   miId: string | null;
-  onOpenChangeRole: (m: Miembro, r: 'admin' | 'miembro') => void;
-  onOpenDelete: (m: Miembro) => void;
+  onOpenChangeRole: (
+    m: Miembro,
+    r: 'admin' | 'miembro'
+  ) => void;
+  onOpenDelete: (
+    m: Miembro
+  ) => void;
 }) {
-  const esOwner = miembro.rol === 'owner';
-  const n = miembro.tareas_asignadas ?? 0;
+  const esOwner =
+    miembro.rol === 'owner';
+
+  const n =
+    miembro.tareas_asignadas ?? 0;
 
   return (
     <div
       className={`rounded-2xl border p-4 ${
-        esYo ? 'border-purple-500/20 bg-purple-500/[0.03]' : 'border-slate-700/50 bg-slate-900/30'
+        esYo
+          ? 'border-purple-500/20 bg-purple-500/[0.03]'
+          : 'border-slate-700/50 bg-slate-900/30'
       }`}
     >
       <div className="flex items-start gap-3">
         <div className="relative flex-shrink-0">
           <div
             className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(
-              miembro.id,
+              miembro.id
             )} text-sm font-bold text-white`}
           >
-            {getInitials(miembro.nombre, miembro.apellido)}
+            {getInitials(
+              miembro.nombre,
+              miembro.apellido
+            )}
           </div>
+
           {esOwner && (
             <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-slate-900 bg-purple-600">
               <Ic.crown />
@@ -591,20 +919,25 @@ function MiembroCard({
             <span className="break-words text-sm font-semibold text-white">
               {miembro.nombre_completo}
             </span>
+
             {esYo && (
               <span className="rounded-md border border-purple-500/20 bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">
                 Tú
               </span>
             )}
+
             {n > 0 && (
               <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400">
                 <Ic.task />
-                {n} tarea{n > 1 ? 's' : ''}
+                {n} tarea
+                {n > 1 ? 's' : ''}
               </span>
             )}
           </div>
 
-          <p className="mt-1 break-all text-xs text-gray-400">{miembro.email}</p>
+          <p className="mt-1 break-all text-xs text-gray-400">
+            {miembro.email}
+          </p>
 
           <div className="mt-2 flex flex-wrap items-center gap-3">
             {miembro.pais && (
@@ -613,10 +946,14 @@ function MiembroCard({
                 {miembro.pais}
               </span>
             )}
+
             {miembro.fecha_union && (
               <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                 <Ic.calendar />
-                Se unió {formatFecha(miembro.fecha_union)}
+                Se unió{' '}
+                {formatFecha(
+                  miembro.fecha_union
+                )}
               </span>
             )}
           </div>
@@ -625,32 +962,47 @@ function MiembroCard({
 
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          {puedeEdit && (miembro.rol === 'admin' || miembro.rol === 'miembro') ? (
+          {puedeEdit &&
+          (miembro.rol === 'admin' ||
+            miembro.rol === 'miembro') ? (
             <RolSwitcher
               rol={miembro.rol}
               loading={rolLoad}
-              onSwitch={(nr) => onOpenChangeRole(miembro, nr)}
+              onSwitch={(nr) =>
+                onOpenChangeRole(
+                  miembro,
+                  nr
+                )
+              }
             />
           ) : (
-            <RolBadge rol={miembro.rol} />
+            <RolBadge
+              rol={miembro.rol}
+            />
           )}
         </div>
 
-        {puedeGestionar && puedeDel && (
-          <button
-            type="button"
-            onClick={() => onOpenDelete(miembro)}
-            disabled={delLoad}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-400 transition-all hover:border-red-500/30 hover:bg-red-500/10 sm:w-auto"
-          >
-            {delLoad ? (
-              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/20 border-t-red-500" />
-            ) : (
-              <Ic.trash />
-            )}
-            Quitar
-          </button>
-        )}
+        {puedeGestionar &&
+          puedeDel && (
+            <button
+              type="button"
+              onClick={() =>
+                onOpenDelete(
+                  miembro
+                )
+              }
+              disabled={delLoad}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-sm text-red-400 transition-all hover:border-red-500/30 hover:bg-red-500/10 sm:w-auto"
+            >
+              {delLoad ? (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/20 border-t-red-500" />
+              ) : (
+                <Ic.trash />
+              )}
+
+              Quitar
+            </button>
+          )}
       </div>
     </div>
   );
@@ -659,37 +1011,146 @@ function MiembroCard({
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function MiembrosPage() {
-  const { id: proyectoId } = useParams<{ id: string }>();
-  const router = useRouter();
+  const {
+    id: proyectoId,
+  } = useParams<{
+    id: string;
+  }>();
 
-  const [miembros, setMiembros] = useState<Miembro[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [miRol, setMiRol] = useState<RolProyecto | null>(null);
-  const [miId, setMiId] = useState<string | null>(null);
-  const [modoAcceso, setModoAcceso] = useState<ModoAcceso | null>(null);
+  const router =
+    useRouter();
 
-  const [showAddPanel, setShowAddPanel] = useState(false);
-  const [busqueda, setBusqueda] = useState('');
-  const [resultados, setResultados] = useState<UsuarioBusqueda[]>([]);
-  const [buscando, setBuscando] = useState(false);
-  const [rolNuevo, setRolNuevo] = useState<'admin' | 'miembro'>('miembro');
-  const searchRef = useRef<HTMLDivElement>(null);
+  const [
+    miembros,
+    setMiembros,
+  ] = useState<Miembro[]>([]);
 
-  const [pendienteAgregar, setPendienteAgregar] = useState<UsuarioBusqueda | null>(null);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [filtroRol, setFiltroRol] = useState<'todos' | RolProyecto>('todos');
-  const [busquedaLocal, setBusquedaLocal] = useState('');
+  const [
+    error,
+    setError,
+  ] = useState('');
 
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [eliminando, setEliminando] = useState<Miembro | null>(null);
-  const [cambioRol, setCambioRol] = useState<CambioRolState>(null);
+  const [
+    miRol,
+    setMiRol,
+  ] =
+    useState<RolProyecto | null>(
+      null
+    );
 
-  const [showSolicitudes, setShowSolicitudes] = useState(false);
+  const [
+    miId,
+    setMiId,
+  ] =
+    useState<string | null>(
+      null
+    );
 
-  const [toast, setToast] = useState<{
+  const [
+    modoAcceso,
+    setModoAcceso,
+  ] =
+    useState<ModoAcceso | null>(
+      null
+    );
+
+  const [
+    showAddPanel,
+    setShowAddPanel,
+  ] = useState(false);
+
+  const [
+    busqueda,
+    setBusqueda,
+  ] = useState('');
+
+  const [
+    resultados,
+    setResultados,
+  ] =
+    useState<UsuarioBusqueda[]>(
+      []
+    );
+
+  const [
+    buscando,
+    setBuscando,
+  ] = useState(false);
+
+  const [
+    rolNuevo,
+    setRolNuevo,
+  ] =
+    useState<
+      'admin' | 'miembro'
+    >('miembro');
+
+  const searchRef =
+    useRef<HTMLDivElement>(null);
+
+  const [
+    pendienteAgregar,
+    setPendienteAgregar,
+  ] =
+    useState<UsuarioBusqueda | null>(
+      null
+    );
+
+  const [
+    filtroRol,
+    setFiltroRol,
+  ] =
+    useState<
+      'todos' | RolProyecto
+    >('todos');
+
+  const [
+    busquedaLocal,
+    setBusquedaLocal,
+  ] = useState('');
+
+  const [
+    actionLoading,
+    setActionLoading,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+  const [
+    eliminando,
+    setEliminando,
+  ] =
+    useState<Miembro | null>(
+      null
+    );
+
+  const [
+    cambioRol,
+    setCambioRol,
+  ] =
+    useState<CambioRolState>(
+      null
+    );
+
+  const [
+    showSolicitudes,
+    setShowSolicitudes,
+  ] = useState(false);
+
+  const [
+    toast,
+    setToast,
+  ] = useState<{
     message: string;
-    type: 'success' | 'error';
+    type:
+      | 'success'
+      | 'error';
     visible: boolean;
   }>({
     message: '',
@@ -697,149 +1158,422 @@ export default function MiembrosPage() {
     visible: false,
   });
 
-  const showToast = useCallback(
-    (message: string, type: 'success' | 'error' = 'success') => {
-      setToast({ message, type, visible: true });
-      setTimeout(() => setToast((t) => ({ ...t, visible: false })), 3200);
-    },
-    [],
-  );
+  const showToast =
+    useCallback(
+      (
+        message: string,
+        type:
+          | 'success'
+          | 'error' =
+          'success'
+      ) => {
+        setToast({
+          message,
+          type,
+          visible: true,
+        });
 
-  const fetchMiembros = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
+        setTimeout(() => {
+          setToast((t) => ({
+            ...t,
+            visible: false,
+          }));
+        }, 3200);
+      },
+      []
+    );
 
-      const [membRes, sessRes, projRes] = await Promise.all([
-        fetch(`/api/proyectos/${proyectoId}/miembros`, {
-          credentials: 'include',
-          cache: 'no-store',
-        }),
-        fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' }),
-        fetch(`/api/proyectos/${proyectoId}`, {
-          credentials: 'include',
-          cache: 'no-store',
-        }),
-      ]);
+  const fetchMiembros =
+    useCallback(async () => {
+      if (!proyectoId) {
+        setError(
+          'ID de proyecto no válido'
+        );
 
-      const membData = await membRes.json().catch(() => ({}));
-      if (!membRes.ok) {
-        throw new Error(membData?.error || 'Error al cargar miembros');
+        setLoading(false);
+        return;
       }
 
-      const sessData = await sessRes.json().catch(() => ({}));
-      const userId =
-        sessData?.user?.id ??
-        sessData?.id ??
-        sessData?.data?.id ??
-        null;
+      try {
+        setLoading(true);
+        setError('');
 
-      setMiId(userId ? String(userId) : null);
+        const [
+          membRes,
+          sessRes,
+          projRes,
+        ] =
+          await Promise.all([
+            fetch(
+              `/api/proyectos/${proyectoId}/miembros`,
+              {
+                method: 'GET',
+                credentials:
+                  'include',
+                cache:
+                  'no-store',
+              }
+            ),
 
-      const listaRaw = Array.isArray(membData?.data)
-        ? membData.data
-        : Array.isArray(membData?.miembros)
-        ? membData.miembros
-        : [];
+            fetch(
+              '/api/auth/me',
+              {
+                method: 'GET',
+                credentials:
+                  'include',
+                cache:
+                  'no-store',
+              }
+            ),
 
-      const lista: Miembro[] = listaRaw.map(adaptarMiembro);
-      setMiembros(lista);
+            fetch(
+              `/api/proyectos/${proyectoId}`,
+              {
+                method: 'GET',
+                credentials:
+                  'include',
+                cache:
+                  'no-store',
+              }
+            ),
+          ]);
 
-      if (projRes.ok) {
-        const projData = await projRes.json().catch(() => ({}));
-        const rawModo = String(projData?.proyecto?.modo_acceso ?? '').toLowerCase();
+        const [
+          membData,
+          sessData,
+          projData,
+        ] =
+          await Promise.all([
+            membRes
+              .json()
+              .catch(() => ({})),
 
-        if (rawModo === 'publico' || rawModo === 'privado' || rawModo === 'solicitud') {
-          setModoAcceso(rawModo as ModoAcceso);
-        } else {
-          setModoAcceso(null);
+            sessRes
+              .json()
+              .catch(() => ({})),
+
+            projRes
+              .json()
+              .catch(() => ({})),
+          ]);
+
+        if (!membRes.ok) {
+          throw new Error(
+            typeof membData?.error ===
+              'string'
+              ? membData.error
+              : 'Error al cargar miembros'
+          );
         }
 
-        const creadorId = String(projData?.proyecto?.creador_id ?? '');
-        if (userId && creadorId && String(userId) === creadorId) {
-          setMiRol('owner');
-        } else if (userId) {
-          const yo = lista.find((m) => String(m.id) === String(userId));
-          setMiRol(yo?.rol ?? null);
-        } else {
-          setMiRol(null);
+        if (!sessRes.ok) {
+          throw new Error(
+            typeof sessData?.error ===
+              'string'
+              ? sessData.error
+              : 'No se pudo obtener la sesión actual'
+          );
         }
-      } else {
-        setModoAcceso(null);
-        if (userId) {
-          const yo = lista.find((m) => String(m.id) === String(userId));
-          setMiRol(yo?.rol ?? null);
+
+        const userId =
+          sessData?.data?.id ??
+          sessData?.data?.user?.id ??
+          sessData?.user?.id ??
+          sessData?.id ??
+          null;
+
+        const userIdStr =
+          userId != null
+            ? String(userId)
+            : null;
+
+        setMiId(
+          userIdStr
+        );
+
+        const listaRaw =
+          Array.isArray(
+            membData?.data
+          )
+            ? membData.data
+            : Array.isArray(
+                membData?.miembros
+              )
+            ? membData.miembros
+            : [];
+
+        const lista: Miembro[] =
+          listaRaw
+            .map(adaptarMiembro)
+            .filter(
+              (m: Miembro) =>
+                Boolean(m.id)
+            );
+
+        setMiembros(
+          lista
+        );
+
+        const proyecto =
+          projData?.proyecto ??
+          projData?.data
+            ?.proyecto ??
+          null;
+
+        if (
+          projRes.ok &&
+          proyecto
+        ) {
+          setModoAcceso(
+            normalizarModoAcceso(
+              proyecto?.modo_acceso
+            )
+          );
+
+          const creadorId =
+            String(
+              proyecto?.creador_id ??
+                ''
+            );
+
+          if (
+            userIdStr &&
+            creadorId &&
+            userIdStr ===
+              creadorId
+          ) {
+            setMiRol(
+              'owner'
+            );
+          } else if (
+            userIdStr
+          ) {
+            const yo =
+              lista.find(
+                (m) =>
+                  String(
+                    m.id
+                  ) ===
+                  userIdStr
+              );
+
+            setMiRol(
+              yo?.rol ?? null
+            );
+          } else {
+            setMiRol(null);
+          }
         } else {
-          setMiRol(null);
+          setModoAcceso(
+            null
+          );
+
+          if (userIdStr) {
+            const yo =
+              lista.find(
+                (m) =>
+                  String(
+                    m.id
+                  ) ===
+                  userIdStr
+              );
+
+            setMiRol(
+              yo?.rol ?? null
+            );
+          } else {
+            setMiRol(null);
+          }
         }
+      } catch (err) {
+        console.error(
+          'Error cargando miembros:',
+          err
+        );
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Error cargando miembros'
+        );
+
+        setMiembros([]);
+        setMiRol(null);
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      setError(err?.message || 'Error cargando miembros');
-      setMiembros([]);
-      setMiRol(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [proyectoId]);
+    }, [proyectoId]);
 
   useEffect(() => {
-    fetchMiembros();
+    void fetchMiembros();
   }, [fetchMiembros]);
 
   useEffect(() => {
-    if (!busqueda.trim() || busqueda.length < 2 || pendienteAgregar) {
+    const termino =
+      busqueda.trim();
+
+    if (
+      !termino ||
+      termino.length < 2 ||
+      pendienteAgregar
+    ) {
       setResultados([]);
+      setBuscando(false);
       return;
     }
 
-    const t = setTimeout(async () => {
-      setBuscando(true);
-      try {
-        const res = await fetch(
-          `/api/user/buscar?q=${encodeURIComponent(busqueda)}`,
-          { credentials: 'include', cache: 'no-store' },
-        );
-        const data = await res.json().catch(() => ({}));
+    const t =
+      setTimeout(
+        async () => {
+          setBuscando(true);
 
-        const usuarios = Array.isArray(data?.usuarios)
-          ? data.usuarios
-          : Array.isArray(data?.data)
-          ? data.data
-          : [];
+          try {
+            const res =
+              await fetch(
+                `/api/user/buscar?q=${encodeURIComponent(
+                  termino
+                )}`,
+                {
+                  method:
+                    'GET',
+                  credentials:
+                    'include',
+                  cache:
+                    'no-store',
+                }
+              );
 
-        const filtrados = usuarios.filter((u: UsuarioBusqueda) => {
-          const yaEsMiembro = esMiembroProyecto(miembros, u.id);
-          const esElMismoUsuario = miId ? String(miId) === String(u.id) : false;
-          return !yaEsMiembro && !esElMismoUsuario;
-        });
+            const data =
+              await res
+                .json()
+                .catch(() => ({}));
 
-        setResultados(filtrados.slice(0, 8));
-      } catch {
-        setResultados([]);
-      } finally {
-        setBuscando(false);
-      }
-    }, 300);
+            if (
+              !res.ok ||
+              data?.ok === false
+            ) {
+              throw new Error(
+                typeof data?.error ===
+                  'string'
+                  ? data.error
+                  : 'Error al buscar usuarios'
+              );
+            }
 
-    return () => clearTimeout(t);
-  }, [busqueda, miembros, miId, pendienteAgregar]);
+            const usuarios =
+              Array.isArray(
+                data?.usuarios
+              )
+                ? data.usuarios
+                : Array.isArray(
+                    data?.data
+                  )
+                ? data.data
+                : [];
+
+            const filtrados =
+              usuarios.filter(
+                (
+                  u: UsuarioBusqueda
+                ) => {
+                  const yaEsMiembro =
+                    esMiembroProyecto(
+                      miembros,
+                      u.id
+                    );
+
+                  const esElMismoUsuario =
+                    miId
+                      ? String(
+                          miId
+                        ) ===
+                        String(
+                          u.id
+                        )
+                      : false;
+
+                  return (
+                    !yaEsMiembro &&
+                    !esElMismoUsuario
+                  );
+                }
+              );
+
+            setResultados(
+              filtrados.slice(
+                0,
+                8
+              )
+            );
+          } catch (err) {
+            console.error(
+              'Error buscando usuarios:',
+              err
+            );
+
+            setResultados([]);
+          } finally {
+            setBuscando(false);
+          }
+        },
+        300
+      );
+
+    return () =>
+      clearTimeout(t);
+  }, [
+    busqueda,
+    miembros,
+    miId,
+    pendienteAgregar,
+  ]);
 
   useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+    const h = (
+      e: MouseEvent
+    ) => {
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(
+          e.target as Node
+        )
+      ) {
         setResultados([]);
       }
     };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
+
+    document.addEventListener(
+      'mousedown',
+      h
+    );
+
+    return () =>
+      document.removeEventListener(
+        'mousedown',
+        h
+      );
   }, []);
 
-  const solicitarAgregar = (u: UsuarioBusqueda) => {
-    if (actionLoading) return;
+  const solicitarAgregar = (
+    u: UsuarioBusqueda
+  ) => {
+    if (actionLoading) {
+      return;
+    }
 
-    if (esMiembroProyecto(miembros, u.id)) {
+    if (
+      esMiembroProyecto(
+        miembros,
+        u.id
+      )
+    ) {
       setResultados([]);
-      showToast('Ese usuario ya forma parte del proyecto', 'error');
+
+      showToast(
+        'Ese usuario ya forma parte del proyecto',
+        'error'
+      );
+
       return;
     }
 
@@ -849,123 +1583,414 @@ export default function MiembrosPage() {
     setPendienteAgregar(u);
   };
 
-  const agregarMiembro = async (u: UsuarioBusqueda) => {
-    if (esMiembroProyecto(miembros, u.id)) {
-      setPendienteAgregar(null);
-      setResultados([]);
-      showToast('Ese usuario ya forma parte del proyecto', 'error');
-      return;
-    }
+  const agregarMiembro =
+    async (
+      u: UsuarioBusqueda
+    ) => {
+      if (
+        actionLoading
+      ) {
+        return;
+      }
 
-    setActionLoading(`add-${u.id}`);
-    try {
-      const res = await fetch(`/api/proyectos/${proyectoId}/miembros`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: u.id, rol_en_proyecto: rolNuevo }),
-      });
+      if (
+        esMiembroProyecto(
+          miembros,
+          u.id
+        )
+      ) {
+        setPendienteAgregar(
+          null
+        );
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Error al agregar');
+        setResultados([]);
 
-      setBusqueda('');
-      setResultados([]);
-      setPendienteAgregar(null);
-      setShowAddPanel(false);
-      await fetchMiembros();
-      showToast(`${u.nombre} ${u.apellido ?? ''} agregado como ${ROL_CONFIG[rolNuevo].label}`);
-    } catch (err: any) {
-      showToast(err?.message || 'Error al agregar miembro', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  };
+        showToast(
+          'Ese usuario ya forma parte del proyecto',
+          'error'
+        );
 
-  const cambiarRol = async (miembro: Miembro, nuevoRol: 'admin' | 'miembro') => {
-    const key = `rol-${miembro.id}`;
-    setActionLoading(key);
+        return;
+      }
 
-    const rolAnterior = miembro.rol;
-    setMiembros((prev) =>
-      prev.map((m) => (m.id === miembro.id ? { ...m, rol: nuevoRol } : m)),
-    );
+      const key =
+        `add-${u.id}`;
 
-    try {
-      const res = await fetch(`/api/proyectos/${proyectoId}/miembros`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: miembro.id, rol_en_proyecto: nuevoRol }),
-      });
+      setActionLoading(key);
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Error al actualizar rol');
+      try {
+        const res =
+          await fetch(
+            `/api/proyectos/${proyectoId}/miembros`,
+            {
+              method:
+                'POST',
 
-      showToast(`${miembro.nombre} ahora es ${ROL_CONFIG[nuevoRol].label}`);
-    } catch (err: any) {
-      setMiembros((prev) =>
-        prev.map((m) => (m.id === miembro.id ? { ...m, rol: rolAnterior } : m)),
+              credentials:
+                'include',
+
+              headers: {
+                'Content-Type':
+                  'application/json',
+              },
+
+              body:
+                JSON.stringify({
+                  usuario_id:
+                    u.id,
+
+                  rol_en_proyecto:
+                    rolNuevo,
+                }),
+            }
+          );
+
+        const data =
+          await res
+            .json()
+            .catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(
+            typeof data?.error ===
+              'string'
+              ? data.error
+              : 'Error al agregar'
+          );
+        }
+
+        setBusqueda('');
+        setResultados([]);
+        setPendienteAgregar(
+          null
+        );
+
+        setShowAddPanel(
+          false
+        );
+
+        await fetchMiembros();
+
+        showToast(
+          `${u.nombre} ${
+            u.apellido ?? ''
+          } agregado como ${
+            ROL_CONFIG[
+              rolNuevo
+            ].label
+          }`
+        );
+      } catch (err) {
+        console.error(
+          'Error agregando miembro:',
+          err
+        );
+
+        showToast(
+          err instanceof Error
+            ? err.message
+            : 'Error al agregar miembro',
+          'error'
+        );
+      } finally {
+        setActionLoading(
+          null
+        );
+      }
+    };
+
+  const cambiarRol =
+    async (
+      miembro: Miembro,
+      nuevoRol:
+        | 'admin'
+        | 'miembro'
+    ) => {
+      if (
+        actionLoading ||
+        miembro.rol ===
+          'owner' ||
+        miembro.rol ===
+          nuevoRol
+      ) {
+        return;
+      }
+
+      const key =
+        `rol-${miembro.id}`;
+
+      setActionLoading(key);
+
+      const rolAnterior =
+        miembro.rol;
+
+      setMiembros(
+        (prev) =>
+          prev.map((m) =>
+            m.id === miembro.id
+              ? {
+                  ...m,
+                  rol: nuevoRol,
+                }
+              : m
+          )
       );
-      showToast(err?.message || 'Error al cambiar rol', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  };
 
-  const eliminarMiembro = async () => {
-    if (!eliminando) return;
+      try {
+        const res =
+          await fetch(
+            `/api/proyectos/${proyectoId}/miembros`,
+            {
+              method:
+                'PATCH',
 
-    const key = `del-${eliminando.id}`;
-    setActionLoading(key);
+              credentials:
+                'include',
 
-    try {
-      const res = await fetch(`/api/proyectos/${proyectoId}/miembros`, {
-        method: 'DELETE',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: eliminando.id, liberar_tareas: true }),
-      });
+              headers: {
+                'Content-Type':
+                  'application/json',
+              },
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Error al eliminar');
+              body:
+                JSON.stringify({
+                  usuario_id:
+                    miembro.id,
 
-      const n = eliminando.tareas_asignadas ?? 0;
-      showToast(
-        n > 0
-          ? `${eliminando.nombre_completo} eliminado · ${n} tarea${n > 1 ? 's' : ''} liberada${n > 1 ? 's' : ''}`
-          : `${eliminando.nombre_completo} eliminado del proyecto`,
+                  rol_en_proyecto:
+                    nuevoRol,
+                }),
+            }
+          );
+
+        const data =
+          await res
+            .json()
+            .catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(
+            typeof data?.error ===
+              'string'
+              ? data.error
+              : 'Error al actualizar rol'
+          );
+        }
+
+        showToast(
+          `${
+            miembro.nombre
+          } ahora es ${
+            ROL_CONFIG[
+              nuevoRol
+            ].label
+          }`
+        );
+      } catch (err) {
+        console.error(
+          'Error cambiando rol:',
+          err
+        );
+
+        setMiembros(
+          (prev) =>
+            prev.map((m) =>
+              m.id ===
+              miembro.id
+                ? {
+                    ...m,
+                    rol:
+                      rolAnterior,
+                  }
+                : m
+            )
+        );
+
+        showToast(
+          err instanceof Error
+            ? err.message
+            : 'Error al cambiar rol',
+          'error'
+        );
+      } finally {
+        setActionLoading(
+          null
+        );
+      }
+    };
+
+  const eliminarMiembro =
+    async () => {
+      if (
+        !eliminando ||
+        actionLoading
+      ) {
+        return;
+      }
+
+      if (
+        eliminando.rol ===
+          'owner' ||
+        String(
+          eliminando.id
+        ) === String(miId)
+      ) {
+        setEliminando(null);
+
+        showToast(
+          'No puedes eliminar este miembro',
+          'error'
+        );
+
+        return;
+      }
+
+      const key =
+        `del-${eliminando.id}`;
+
+      setActionLoading(key);
+
+      try {
+        const res =
+          await fetch(
+            `/api/proyectos/${proyectoId}/miembros`,
+            {
+              method:
+                'DELETE',
+
+              credentials:
+                'include',
+
+              headers: {
+                'Content-Type':
+                  'application/json',
+              },
+
+              body:
+                JSON.stringify({
+                  usuario_id:
+                    eliminando.id,
+
+                  liberar_tareas:
+                    true,
+                }),
+            }
+          );
+
+        const data =
+          await res
+            .json()
+            .catch(() => ({}));
+
+        if (!res.ok) {
+          throw new Error(
+            typeof data?.error ===
+              'string'
+              ? data.error
+              : 'Error al eliminar'
+          );
+        }
+
+        const n =
+          eliminando
+            .tareas_asignadas ??
+          0;
+
+        showToast(
+          n > 0
+            ? `${
+                eliminando.nombre_completo
+              } eliminado · ${n} tarea${
+                n > 1
+                  ? 's'
+                  : ''
+              } liberada${
+                n > 1
+                  ? 's'
+                  : ''
+              }`
+            : `${eliminando.nombre_completo} eliminado del proyecto`
+        );
+
+        setEliminando(
+          null
+        );
+
+        await fetchMiembros();
+      } catch (err) {
+        console.error(
+          'Error eliminando miembro:',
+          err
+        );
+
+        showToast(
+          err instanceof Error
+            ? err.message
+            : 'Error al eliminar miembro',
+          'error'
+        );
+      } finally {
+        setActionLoading(
+          null
+        );
+      }
+    };
+
+  const puedeGestionar =
+    miRol === 'owner' ||
+    miRol === 'admin';
+
+  const miembrosFiltrados =
+    miembros.filter((m) => {
+      const matchRol =
+        filtroRol ===
+          'todos' ||
+        m.rol === filtroRol;
+
+      const query =
+        busquedaLocal
+          .trim()
+          .toLowerCase();
+
+      const matchText =
+        !query ||
+        m.nombre_completo
+          .toLowerCase()
+          .includes(query) ||
+        m.email
+          .toLowerCase()
+          .includes(query) ||
+        (m.pais ?? '')
+          .toLowerCase()
+          .includes(query);
+
+      return (
+        matchRol &&
+        matchText
       );
-
-      setEliminando(null);
-      await fetchMiembros();
-    } catch (err: any) {
-      showToast(err?.message || 'Error al eliminar miembro', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const puedeGestionar = miRol === 'owner' || miRol === 'admin';
-
-  const miembrosFiltrados = miembros.filter((m) => {
-    const matchRol = filtroRol === 'todos' || m.rol === filtroRol;
-    const query = busquedaLocal.trim().toLowerCase();
-
-    const matchText =
-      !query ||
-      m.nombre_completo.toLowerCase().includes(query) ||
-      m.email.toLowerCase().includes(query) ||
-      (m.pais ?? '').toLowerCase().includes(query);
-
-    return matchRol && matchText;
-  });
+    });
 
   const stats = {
-    total: miembros.length,
-    owners: miembros.filter((m) => m.rol === 'owner').length,
-    admins: miembros.filter((m) => m.rol === 'admin').length,
-    miembros: miembros.filter((m) => m.rol === 'miembro').length,
+    total:
+      miembros.length,
+
+    owners:
+      miembros.filter(
+        (m) =>
+          m.rol === 'owner'
+      ).length,
+
+    admins:
+      miembros.filter(
+        (m) =>
+          m.rol === 'admin'
+      ).length,
+
+    miembros:
+      miembros.filter(
+        (m) =>
+          m.rol === 'miembro'
+      ).length,
   };
 
   if (loading) {
@@ -973,7 +1998,10 @@ export default function MiembrosPage() {
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-purple-500/20 border-t-purple-500" />
-          <p className="mt-4 text-sm text-gray-400">Cargando miembros...</p>
+
+          <p className="mt-4 text-sm text-gray-400">
+            Cargando miembros...
+          </p>
         </div>
       </div>
     );
@@ -984,15 +2012,18 @@ export default function MiembrosPage() {
       <div className="mx-auto mb-6 max-w-5xl sm:mb-8">
         <div className="relative overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-900/40 p-4 shadow-xl backdrop-blur-sm sm:p-6 lg:p-8">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-blue-500/5" />
+
           <div className="relative z-10">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
                 <div className="flex items-start gap-3">
                   <div className="mt-1 h-7 w-1.5 shrink-0 rounded-full bg-gradient-to-b from-purple-500 to-blue-500 sm:h-8" />
+
                   <div className="min-w-0">
                     <h1 className="text-2xl font-bold text-white sm:text-3xl">
                       Miembros del Proyecto
                     </h1>
+
                     <p className="mt-1 text-sm text-gray-400">
                       Gestiona el equipo, roles y accesos
                     </p>
@@ -1002,16 +2033,57 @@ export default function MiembrosPage() {
                 <div className="mt-4 ml-[18px] flex flex-wrap items-center gap-4 text-sm sm:ml-[22px] sm:gap-6">
                   {(
                     [
-                      { label: 'Total', value: stats.total, color: 'bg-white' },
-                      { label: 'Dueño', value: stats.owners, color: 'bg-purple-400' },
-                      { label: 'Admins', value: stats.admins, color: 'bg-blue-400' },
-                      { label: 'Miembros', value: stats.miembros, color: 'bg-slate-400' },
+                      {
+                        label:
+                          'Total',
+                        value:
+                          stats.total,
+                        color:
+                          'bg-white',
+                      },
+                      {
+                        label:
+                          'Dueño',
+                        value:
+                          stats.owners,
+                        color:
+                          'bg-purple-400',
+                      },
+                      {
+                        label:
+                          'Admins',
+                        value:
+                          stats.admins,
+                        color:
+                          'bg-blue-400',
+                      },
+                      {
+                        label:
+                          'Miembros',
+                        value:
+                          stats.miembros,
+                        color:
+                          'bg-slate-400',
+                      },
                     ] as const
                   ).map((s) => (
-                    <div key={s.label} className="flex items-center gap-2">
-                      <div className={`h-2 w-2 rounded-full ${s.color}`} />
-                      <span className="font-medium text-gray-300">{s.value}</span>
-                      <span className="text-gray-500">{s.label}</span>
+                    <div
+                      key={
+                        s.label
+                      }
+                      className="flex items-center gap-2"
+                    >
+                      <div
+                        className={`h-2 w-2 rounded-full ${s.color}`}
+                      />
+
+                      <span className="font-medium text-gray-300">
+                        {s.value}
+                      </span>
+
+                      <span className="text-gray-500">
+                        {s.label}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1020,31 +2092,58 @@ export default function MiembrosPage() {
               <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
                 {miRol && (
                   <div
-                    className={`flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium sm:justify-start ${ROL_CONFIG[miRol].cls}`}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium sm:justify-start ${
+                      ROL_CONFIG[
+                        miRol
+                      ].cls
+                    }`}
                   >
                     <Ic.shield />
-                    Tu rol: {ROL_CONFIG[miRol].label}
+
+                    Tu rol:{' '}
+                    {
+                      ROL_CONFIG[
+                        miRol
+                      ].label
+                    }
                   </div>
                 )}
 
-                {modoAcceso === 'solicitud' && puedeGestionar && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSolicitudes(true)}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-slate-900/40 px-4 py-2.5 text-sm font-medium text-amber-200 transition-all hover:border-amber-400 hover:bg-amber-500/20 hover:text-white"
-                  >
-                    <Ic.users />
-                    Solicitudes
-                  </button>
-                )}
+                {modoAcceso ===
+                  'solicitud' &&
+                  puedeGestionar && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowSolicitudes(
+                          true
+                        )
+                      }
+                      className="flex items-center justify-center gap-2 rounded-xl border border-amber-500/40 bg-slate-900/40 px-4 py-2.5 text-sm font-medium text-amber-200 transition-all hover:border-amber-400 hover:bg-amber-500/20 hover:text-white"
+                    >
+                      <Ic.users />
+                      Solicitudes
+                    </button>
+                  )}
 
                 {puedeGestionar && (
                   <button
                     type="button"
                     onClick={() => {
-                      if (pendienteAgregar || actionLoading) return;
-                      setShowAddPanel((v) => !v);
-                      if (showAddPanel) {
+                      if (
+                        pendienteAgregar ||
+                        actionLoading
+                      ) {
+                        return;
+                      }
+
+                      setShowAddPanel(
+                        (v) => !v
+                      );
+
+                      if (
+                        showAddPanel
+                      ) {
                         setBusqueda('');
                         setResultados([]);
                       }
@@ -1057,18 +2156,25 @@ export default function MiembrosPage() {
                   >
                     <span
                       className={`transition-transform duration-300 ${
-                        showAddPanel ? 'rotate-45' : ''
+                        showAddPanel
+                          ? 'rotate-45'
+                          : ''
                       }`}
                     >
                       <Ic.plus />
                     </span>
-                    {showAddPanel ? 'Cancelar' : 'Agregar miembro'}
+
+                    {showAddPanel
+                      ? 'Cancelar'
+                      : 'Agregar miembro'}
                   </button>
                 )}
 
                 <button
                   type="button"
-                  onClick={() => router.back()}
+                  onClick={() =>
+                    router.back()
+                  }
                   className="flex items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-slate-900/40 px-4 py-2.5 text-sm font-medium text-gray-300 transition-all hover:border-slate-600 hover:text-white"
                 >
                   <Ic.arrow />
@@ -1084,9 +2190,15 @@ export default function MiembrosPage() {
         {error && (
           <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
             <Ic.warn />
-            <span>{error}</span>
+
+            <span>
+              {error}
+            </span>
+
             <button
-              onClick={fetchMiembros}
+              onClick={() =>
+                void fetchMiembros()
+              }
               className="ml-auto text-xs underline transition-colors hover:text-red-300"
             >
               Reintentar
@@ -1096,7 +2208,8 @@ export default function MiembrosPage() {
 
         <div
           className={`relative transition-all duration-500 ease-in-out ${
-            showAddPanel && !pendienteAgregar
+            showAddPanel &&
+            !pendienteAgregar
               ? 'z-[120] translate-y-0 overflow-visible opacity-100'
               : 'pointer-events-none z-0 h-0 -translate-y-2 overflow-hidden opacity-0'
           }`}
@@ -1104,12 +2217,17 @@ export default function MiembrosPage() {
           <div className="relative z-[120] overflow-visible rounded-2xl border border-slate-700/50 bg-slate-900/40 p-4 shadow-xl backdrop-blur-sm sm:p-6">
             <div className="mb-5 flex items-start gap-3">
               <div className="mt-0.5 h-6 w-1 shrink-0 rounded-full bg-gradient-to-b from-purple-500 to-blue-500" />
+
               <div className="flex items-start gap-2.5">
                 <span className="text-gray-400">
                   <Ic.userPlus />
                 </span>
+
                 <div>
-                  <h2 className="text-base font-bold text-white">Agregar miembro</h2>
+                  <h2 className="text-base font-bold text-white">
+                    Agregar miembro
+                  </h2>
+
                   <p className="mt-0.5 text-xs text-gray-500">
                     Busca por nombre o correo · mín. 2 caracteres
                   </p>
@@ -1118,24 +2236,38 @@ export default function MiembrosPage() {
             </div>
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-              <div ref={searchRef} className="relative z-[130] min-w-0 flex-1">
+              <div
+                ref={searchRef}
+                className="relative z-[130] min-w-0 flex-1"
+              >
                 <div className="relative">
                   <input
                     type="text"
-                    value={busqueda}
-                    onChange={(e) => setBusqueda(e.target.value)}
+                    value={
+                      busqueda
+                    }
+                    onChange={(e) =>
+                      setBusqueda(
+                        e.target
+                          .value
+                      )
+                    }
                     placeholder="Nombre o correo del usuario..."
                     className={`${inputCls} pl-11`}
                   />
+
                   <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
                     <Ic.search />
                   </span>
+
                   {busqueda && (
                     <button
                       type="button"
                       onClick={() => {
                         setBusqueda('');
-                        setResultados([]);
+                        setResultados(
+                          []
+                        );
                       }}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-300"
                     >
@@ -1145,99 +2277,178 @@ export default function MiembrosPage() {
                 </div>
 
                 {(buscando ||
-                  resultados.length > 0 ||
-                  (!buscando && busqueda.trim().length >= 2 && resultados.length === 0)) &&
-                  busqueda.trim().length >= 2 &&
+                  resultados.length >
+                    0 ||
+                  (!buscando &&
+                    busqueda
+                      .trim()
+                      .length >=
+                      2 &&
+                    resultados.length ===
+                      0)) &&
+                  busqueda
+                    .trim()
+                    .length >=
+                    2 &&
                   !pendienteAgregar && (
                     <div className="absolute left-0 right-0 top-full z-[140] mt-2 overflow-hidden rounded-2xl border border-slate-600/60 bg-slate-900 shadow-2xl shadow-black/60 ring-1 ring-white/5">
                       <div className="border-b border-slate-800/60 bg-slate-800/40 px-4 py-2.5">
                         <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                           {buscando
                             ? 'Buscando...'
-                            : `${resultados.length} resultado${resultados.length !== 1 ? 's' : ''}`}
+                            : `${
+                                resultados.length
+                              } resultado${
+                                resultados.length !==
+                                1
+                                  ? 's'
+                                  : ''
+                              }`}
                         </p>
                       </div>
 
                       {buscando && (
                         <div className="flex items-center gap-3 px-4 py-4 text-sm text-gray-400">
                           <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-500/30 border-t-purple-500 flex-shrink-0" />
-                          <span>Buscando usuarios...</span>
+
+                          <span>
+                            Buscando usuarios...
+                          </span>
                         </div>
                       )}
 
-                      {!buscando && resultados.length === 0 && (
-                        <div className="px-4 py-5 text-center">
-                          <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700/50 bg-slate-800/60 text-gray-500">
-                            <Ic.search />
+                      {!buscando &&
+                        resultados.length ===
+                          0 && (
+                          <div className="px-4 py-5 text-center">
+                            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700/50 bg-slate-800/60 text-gray-500">
+                              <Ic.search />
+                            </div>
+
+                            <p className="text-sm font-medium text-gray-400">
+                              Sin resultados
+                            </p>
+
+                            <p className="mt-0.5 text-xs text-gray-600">
+                              No se encontró "
+                              {busqueda}
+                              "
+                            </p>
                           </div>
-                          <p className="text-sm font-medium text-gray-400">Sin resultados</p>
-                          <p className="mt-0.5 text-xs text-gray-600">
-                            No se encontró "{busqueda}"
-                          </p>
-                        </div>
-                      )}
+                        )}
 
-                      {!buscando && resultados.length > 0 && (
-                        <div className="max-h-[280px] overflow-y-auto py-1">
-                          {resultados.map((u) => (
-                            <button
-                              key={u.id}
-                              type="button"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                solicitarAgregar(u);
-                              }}
-                              disabled={actionLoading === `add-${u.id}`}
-                              className="group/item flex w-full items-center gap-3 border-b border-slate-800/30 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-slate-800/60 active:bg-slate-700/60 disabled:opacity-60"
-                            >
-                              <div
-                                className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(u.id)} text-sm font-bold text-white ring-2 ring-slate-800`}
-                              >
-                                {getInitials(u.nombre, u.apellido)}
-                              </div>
+                      {!buscando &&
+                        resultados.length >
+                          0 && (
+                          <div className="max-h-[280px] overflow-y-auto py-1">
+                            {resultados.map(
+                              (u) => (
+                                <button
+                                  key={
+                                    u.id
+                                  }
+                                  type="button"
+                                  onClick={(
+                                    e
+                                  ) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
 
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate leading-tight text-sm font-semibold text-white">
-                                  {u.nombre} {u.apellido ?? ''}
-                                </p>
-                                <p className="mt-0.5 truncate text-xs text-gray-400">
-                                  {u.email}
-                                </p>
-                              </div>
+                                    solicitarAgregar(
+                                      u
+                                    );
+                                  }}
+                                  disabled={
+                                    actionLoading ===
+                                    `add-${u.id}`
+                                  }
+                                  className="group/item flex w-full items-center gap-3 border-b border-slate-800/30 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-slate-800/60 active:bg-slate-700/60 disabled:opacity-60"
+                                >
+                                  <div
+                                    className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(
+                                      u.id
+                                    )} text-sm font-bold text-white ring-2 ring-slate-800`}
+                                  >
+                                    {getInitials(
+                                      u.nombre,
+                                      u.apellido
+                                    )}
+                                  </div>
 
-                              <span className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-300 transition-all group-hover/item:border-purple-400/50 group-hover/item:bg-purple-500/20 group-hover/item:text-purple-200">
-                                {actionLoading === `add-${u.id}` ? (
-                                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-400/30 border-t-purple-400" />
-                                ) : (
-                                  <Ic.plus />
-                                )}
-                                Agregar
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate leading-tight text-sm font-semibold text-white">
+                                      {
+                                        u.nombre
+                                      }{' '}
+                                      {u.apellido ??
+                                        ''}
+                                    </p>
+
+                                    <p className="mt-0.5 truncate text-xs text-gray-400">
+                                      {
+                                        u.email
+                                      }
+                                    </p>
+                                  </div>
+
+                                  <span className="flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-300 transition-all group-hover/item:border-purple-400/50 group-hover/item:bg-purple-500/20 group-hover/item:text-purple-200">
+                                    {actionLoading ===
+                                    `add-${u.id}` ? (
+                                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-purple-400/30 border-t-purple-400" />
+                                    ) : (
+                                      <Ic.plus />
+                                    )}
+
+                                    Agregar
+                                  </span>
+                                </button>
+                              )
+                            )}
+                          </div>
+                        )}
 
                       <div className="flex items-center gap-2 border-t border-slate-800/60 bg-slate-800/30 px-4 py-2.5">
-                        <span className="text-[11px] text-gray-500">Se agregará como:</span>
-                        <RolBadge rol={rolNuevo} />
+                        <span className="text-[11px] text-gray-500">
+                          Se agregará como:
+                        </span>
+
+                        <RolBadge
+                          rol={
+                            rolNuevo
+                          }
+                        />
                       </div>
                     </div>
                   )}
               </div>
 
               <div className="flex flex-col gap-1.5 lg:w-auto">
-                <span className="ml-1 text-xs text-gray-500">Rol inicial</span>
+                <span className="ml-1 text-xs text-gray-500">
+                  Rol inicial
+                </span>
+
                 <div className="flex flex-wrap gap-1 rounded-xl border border-slate-700/50 bg-slate-800/60 p-1">
-                  {(['miembro', 'admin'] as const).map((r) => {
-                    const cfg = ROL_CONFIG[r];
-                    const isActive = rolNuevo === r;
+                  {(
+                    [
+                      'miembro',
+                      'admin',
+                    ] as const
+                  ).map((r) => {
+                    const cfg =
+                      ROL_CONFIG[r];
+
+                    const isActive =
+                      rolNuevo === r;
+
                     return (
                       <button
                         key={r}
                         type="button"
-                        onClick={() => setRolNuevo(r)}
+                        onClick={() =>
+                          setRolNuevo(
+                            r
+                          )
+                        }
                         className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-all duration-200 ${
                           isActive
                             ? cfg.activeCls
@@ -1246,8 +2457,14 @@ export default function MiembrosPage() {
                       >
                         <span
                           className="h-1.5 w-1.5 rounded-full"
-                          style={{ background: isActive ? cfg.dot : '#4b5563' }}
+                          style={{
+                            background:
+                              isActive
+                                ? cfg.dot
+                                : '#4b5563',
+                          }}
                         />
+
                         {cfg.label}
                       </button>
                     );
@@ -1262,18 +2479,30 @@ export default function MiembrosPage() {
           <div className="relative flex-1">
             <input
               type="text"
-              value={busquedaLocal}
-              onChange={(e) => setBusquedaLocal(e.target.value)}
+              value={
+                busquedaLocal
+              }
+              onChange={(e) =>
+                setBusquedaLocal(
+                  e.target.value
+                )
+              }
               placeholder="Filtrar por nombre, correo o país..."
               className={`${inputCls} py-2.5 pl-11`}
             />
+
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
               <Ic.search />
             </span>
+
             {busquedaLocal && (
               <button
                 type="button"
-                onClick={() => setBusquedaLocal('')}
+                onClick={() =>
+                  setBusquedaLocal(
+                    ''
+                  )
+                }
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-300"
               >
                 <Ic.x />
@@ -1283,22 +2512,42 @@ export default function MiembrosPage() {
 
           <div className="w-full overflow-x-auto lg:w-auto">
             <div className="flex w-max min-w-full gap-2 lg:min-w-0">
-              {(['todos', 'owner', 'admin', 'miembro'] as const).map((r) => (
+              {(
+                [
+                  'todos',
+                  'owner',
+                  'admin',
+                  'miembro',
+                ] as const
+              ).map((r) => (
                 <button
                   key={r}
                   type="button"
-                  onClick={() => setFiltroRol(r)}
+                  onClick={() =>
+                    setFiltroRol(
+                      r
+                    )
+                  }
                   className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-all ${
                     filtroRol === r
                       ? 'border-purple-500/50 bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg'
                       : 'border-slate-700/50 bg-slate-900/40 text-gray-400 hover:border-slate-600 hover:text-gray-200'
                   }`}
                 >
-                  {r === 'todos' ? 'Todos' : ROL_CONFIG[r].label}
+                  {r === 'todos'
+                    ? 'Todos'
+                    : ROL_CONFIG[
+                        r
+                      ].label}
+
                   <span className="ml-1.5 text-xs opacity-60">
                     {r === 'todos'
                       ? stats.total
-                      : miembros.filter((m) => m.rol === r).length}
+                      : miembros.filter(
+                          (m) =>
+                            m.rol ===
+                            r
+                        ).length}
                   </span>
                 </button>
               ))}
@@ -1309,182 +2558,351 @@ export default function MiembrosPage() {
         <div className="relative z-0 overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-900/40 shadow-xl backdrop-blur-sm">
           <div
             className="hidden border-b border-slate-800/60 bg-slate-900/30 px-6 py-3 sm:grid"
-            style={{ gridTemplateColumns: '44px 1fr auto auto' }}
+            style={{
+              gridTemplateColumns:
+                '44px 1fr auto auto',
+            }}
           >
             <div />
+
             <span className="self-center text-xs font-semibold uppercase tracking-wider text-gray-500">
               Miembro
             </span>
+
             <span className="self-center pr-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
               Rol
             </span>
-            {puedeGestionar && <div className="w-8" />}
+
+            {puedeGestionar && (
+              <div className="w-8" />
+            )}
           </div>
 
-          {miembrosFiltrados.length === 0 ? (
+          {miembrosFiltrados.length ===
+          0 ? (
             <div className="py-16 text-center">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-700/50 bg-slate-800/50 text-gray-500">
                 <Ic.users />
               </div>
-              <p className="font-medium text-gray-300">Sin miembros</p>
-              <p className="mt-1 text-sm text-gray-500">Prueba con otro filtro</p>
+
+              <p className="font-medium text-gray-300">
+                Sin miembros
+              </p>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Prueba con otro filtro
+              </p>
             </div>
           ) : (
             <>
               <div className="hidden divide-y divide-slate-800/50 sm:block">
-                {miembrosFiltrados.map((m) => {
-                  const esYo = String(m.id) === String(miId);
-                  const esOwner = m.rol === 'owner';
-                  const puedeEdit = puedeGestionar && !esOwner;
-                  const puedeDel = puedeGestionar && !esOwner && !esYo;
-                  const rolLoad = actionLoading === `rol-${m.id}`;
-                  const delLoad = actionLoading === `del-${m.id}`;
-                  const n = m.tareas_asignadas ?? 0;
+                {miembrosFiltrados.map(
+                  (m) => {
+                    const esYo =
+                      String(
+                        m.id
+                      ) ===
+                      String(
+                        miId
+                      );
 
-                  return (
-                    <div
-                      key={m.id}
-                      className={`group flex items-center gap-4 px-6 py-4 transition-all ${
-                        esYo ? 'bg-purple-500/[0.03]' : 'hover:bg-slate-800/20'
-                      }`}
-                    >
-                      <div className="relative flex-shrink-0">
-                        <div
-                          className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(
-                            m.id,
-                          )} text-sm font-bold text-white`}
-                        >
-                          {getInitials(m.nombre, m.apellido)}
+                    const esOwner =
+                      m.rol ===
+                      'owner';
+
+                    const puedeEdit =
+                      puedeGestionar &&
+                      !esOwner;
+
+                    const puedeDel =
+                      puedeGestionar &&
+                      !esOwner &&
+                      !esYo;
+
+                    const rolLoad =
+                      actionLoading ===
+                      `rol-${m.id}`;
+
+                    const delLoad =
+                      actionLoading ===
+                      `del-${m.id}`;
+
+                    const n =
+                      m.tareas_asignadas ??
+                      0;
+
+                    return (
+                      <div
+                        key={
+                          m.id
+                        }
+                        className={`group flex items-center gap-4 px-6 py-4 transition-all ${
+                          esYo
+                            ? 'bg-purple-500/[0.03]'
+                            : 'hover:bg-slate-800/20'
+                        }`}
+                      >
+                        <div className="relative flex-shrink-0">
+                          <div
+                            className={`flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br ${getAvatarColor(
+                              m.id
+                            )} text-sm font-bold text-white`}
+                          >
+                            {getInitials(
+                              m.nombre,
+                              m.apellido
+                            )}
+                          </div>
+
+                          {esOwner && (
+                            <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-slate-900 bg-purple-600">
+                              <Ic.crown />
+                            </div>
+                          )}
                         </div>
-                        {esOwner && (
-                          <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-slate-900 bg-purple-600">
-                            <Ic.crown />
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-white">
+                              {
+                                m.nombre_completo
+                              }
+                            </span>
+
+                            {esYo && (
+                              <span className="rounded-md border border-purple-500/20 bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">
+                                Tú
+                              </span>
+                            )}
+
+                            {n >
+                              0 && (
+                              <span className="hidden items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400 md:flex">
+                                <Ic.task />
+
+                                {n}{' '}
+                                tarea
+                                {n >
+                                1
+                                  ? 's'
+                                  : ''}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-0.5 flex flex-wrap items-center gap-3">
+                            <span className="max-w-[220px] truncate text-xs text-gray-400">
+                              {
+                                m.email
+                              }
+                            </span>
+
+                            {m.pais && (
+                              <span className="hidden items-center gap-1 text-xs text-gray-500 lg:flex">
+                                <Ic.globe />
+                                {
+                                  m.pais
+                                }
+                              </span>
+                            )}
+
+                            {m.fecha_union && (
+                              <span className="hidden items-center gap-1 text-xs text-gray-500 xl:flex">
+                                <Ic.calendar />
+
+                                Se unió{' '}
+                                {formatFecha(
+                                  m.fecha_union
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex-shrink-0">
+                          {puedeEdit &&
+                          (m.rol ===
+                            'admin' ||
+                            m.rol ===
+                              'miembro') ? (
+                            <RolSwitcher
+                              rol={
+                                m.rol
+                              }
+                              loading={
+                                rolLoad
+                              }
+                              onSwitch={(
+                                nr
+                              ) =>
+                                setCambioRol(
+                                  {
+                                    miembro:
+                                      m,
+                                    nuevoRol:
+                                      nr,
+                                  }
+                                )
+                              }
+                            />
+                          ) : (
+                            <RolBadge
+                              rol={
+                                m.rol
+                              }
+                            />
+                          )}
+                        </div>
+
+                        {puedeGestionar && (
+                          <div className="w-8 flex-shrink-0">
+                            {puedeDel && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEliminando(
+                                    m
+                                  )
+                                }
+                                disabled={
+                                  delLoad
+                                }
+                                title="Eliminar del proyecto"
+                                className="flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-gray-500 opacity-0 transition-all hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100 disabled:opacity-50"
+                              >
+                                {delLoad ? (
+                                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/20 border-t-red-500" />
+                                ) : (
+                                  <Ic.trash />
+                                )}
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-semibold text-white">
-                            {m.nombre_completo}
-                          </span>
-                          {esYo && (
-                            <span className="rounded-md border border-purple-500/20 bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">
-                              Tú
-                            </span>
-                          )}
-                          {n > 0 && (
-                            <span className="hidden items-center gap-1 rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-400 md:flex">
-                              <Ic.task />
-                              {n} tarea{n > 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="mt-0.5 flex flex-wrap items-center gap-3">
-                          <span className="max-w-[220px] truncate text-xs text-gray-400">
-                            {m.email}
-                          </span>
-                          {m.pais && (
-                            <span className="hidden items-center gap-1 text-xs text-gray-500 lg:flex">
-                              <Ic.globe />
-                              {m.pais}
-                            </span>
-                          )}
-                          {m.fecha_union && (
-                            <span className="hidden items-center gap-1 text-xs text-gray-500 xl:flex">
-                              <Ic.calendar />
-                              Se unió {formatFecha(m.fecha_union)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex-shrink-0">
-                        {puedeEdit && (m.rol === 'admin' || m.rol === 'miembro') ? (
-                          <RolSwitcher
-                            rol={m.rol}
-                            loading={rolLoad}
-                            onSwitch={(nr) => setCambioRol({ miembro: m, nuevoRol: nr })}
-                          />
-                        ) : (
-                          <RolBadge rol={m.rol} />
-                        )}
-                      </div>
-
-                      {puedeGestionar && (
-                        <div className="w-8 flex-shrink-0">
-                          {puedeDel && (
-                            <button
-                              type="button"
-                              onClick={() => setEliminando(m)}
-                              disabled={delLoad}
-                              title="Eliminar del proyecto"
-                              className="flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-gray-500 opacity-0 transition-all hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100 disabled:opacity-50"
-                            >
-                              {delLoad ? (
-                                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-500/20 border-t-red-500" />
-                              ) : (
-                                <Ic.trash />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  }
+                )}
               </div>
 
               <div className="space-y-3 p-4 sm:hidden">
-                {miembrosFiltrados.map((m) => {
-                  const esYo = String(m.id) === String(miId);
-                  const esOwner = m.rol === 'owner';
-                  const puedeEdit = puedeGestionar && !esOwner;
-                  const puedeDel = puedeGestionar && !esOwner && !esYo;
-                  const rolLoad = actionLoading === `rol-${m.id}`;
-                  const delLoad = actionLoading === `del-${m.id}`;
+                {miembrosFiltrados.map(
+                  (m) => {
+                    const esYo =
+                      String(
+                        m.id
+                      ) ===
+                      String(
+                        miId
+                      );
 
-                  return (
-                    <MiembroCard
-                      key={m.id}
-                      miembro={m}
-                      esYo={esYo}
-                      puedeGestionar={puedeGestionar}
-                      puedeEdit={puedeEdit}
-                      puedeDel={puedeDel}
-                      rolLoad={rolLoad}
-                      delLoad={delLoad}
-                      miId={miId}
-                      onOpenChangeRole={(miembro, r) =>
-                        setCambioRol({ miembro, nuevoRol: r })
-                      }
-                      onOpenDelete={(miembro) => setEliminando(miembro)}
-                    />
-                  );
-                })}
+                    const esOwner =
+                      m.rol ===
+                      'owner';
+
+                    const puedeEdit =
+                      puedeGestionar &&
+                      !esOwner;
+
+                    const puedeDel =
+                      puedeGestionar &&
+                      !esOwner &&
+                      !esYo;
+
+                    const rolLoad =
+                      actionLoading ===
+                      `rol-${m.id}`;
+
+                    const delLoad =
+                      actionLoading ===
+                      `del-${m.id}`;
+
+                    return (
+                      <MiembroCard
+                        key={
+                          m.id
+                        }
+                        miembro={
+                          m
+                        }
+                        esYo={
+                          esYo
+                        }
+                        puedeGestionar={
+                          puedeGestionar
+                        }
+                        puedeEdit={
+                          puedeEdit
+                        }
+                        puedeDel={
+                          puedeDel
+                        }
+                        rolLoad={
+                          rolLoad
+                        }
+                        delLoad={
+                          delLoad
+                        }
+                        miId={
+                          miId
+                        }
+                        onOpenChangeRole={(
+                          miembro,
+                          r
+                        ) =>
+                          setCambioRol(
+                            {
+                              miembro,
+                              nuevoRol:
+                                r,
+                            }
+                          )
+                        }
+                        onOpenDelete={(
+                          miembro
+                        ) =>
+                          setEliminando(
+                            miembro
+                          )
+                        }
+                      />
+                    );
+                  }
+                )}
               </div>
             </>
           )}
 
-          {miembrosFiltrados.length > 0 && (
+          {miembrosFiltrados.length >
+            0 && (
             <div className="flex flex-col gap-2 border-t border-slate-800/50 bg-slate-900/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <p className="text-xs text-gray-500">
                 Mostrando{' '}
                 <span className="font-medium text-gray-300">
-                  {miembrosFiltrados.length}
+                  {
+                    miembrosFiltrados.length
+                  }
                 </span>{' '}
                 de{' '}
-                <span className="font-medium text-gray-300">{stats.total}</span>{' '}
+                <span className="font-medium text-gray-300">
+                  {stats.total}
+                </span>{' '}
                 miembros
               </p>
 
-              {(filtroRol !== 'todos' || busquedaLocal) && (
+              {(filtroRol !==
+                'todos' ||
+                busquedaLocal) && (
                 <button
                   type="button"
                   onClick={() => {
-                    setFiltroRol('todos');
-                    setBusquedaLocal('');
+                    setFiltroRol(
+                      'todos'
+                    );
+
+                    setBusquedaLocal(
+                      ''
+                    );
                   }}
                   className="text-left text-xs text-gray-400 transition-colors hover:text-white sm:text-right"
                 >
@@ -1497,63 +2915,141 @@ export default function MiembrosPage() {
       </div>
 
       <Toast
-        message={toast.message}
-        type={toast.type}
-        visible={toast.visible}
+        message={
+          toast.message
+        }
+        type={
+          toast.type
+        }
+        visible={
+          toast.visible
+        }
       />
 
       {showSolicitudes && (
         <SolicitudesModal
-          isOpen={showSolicitudes}
-          proyectoId={String(proyectoId)}
-          onClose={() => setShowSolicitudes(false)}
+          isOpen={
+            showSolicitudes
+          }
+          proyectoId={
+            String(
+              proyectoId
+            )
+          }
+          onClose={() =>
+            setShowSolicitudes(
+              false
+            )
+          }
         />
       )}
 
       {pendienteAgregar && (
         <ConfirmModal
-          isOpen={!!pendienteAgregar}
+          isOpen={
+            !!pendienteAgregar
+          }
           title="Agregar miembro al proyecto"
-          message={`¿Deseas agregar a ${pendienteAgregar.nombre} ${pendienteAgregar.apellido ?? ''} como ${ROL_CONFIG[rolNuevo].label}? Tendrá acceso inmediato al proyecto y su contenido.`}
+          message={`¿Deseas agregar a ${
+            pendienteAgregar.nombre
+          } ${
+            pendienteAgregar.apellido ??
+            ''
+          } como ${
+            ROL_CONFIG[
+              rolNuevo
+            ].label
+          }? Tendrá acceso inmediato al proyecto y su contenido.`}
           confirmText="Agregar miembro"
           cancelText="Cancelar"
-          onConfirm={() => agregarMiembro(pendienteAgregar)}
+          onConfirm={() =>
+            void agregarMiembro(
+              pendienteAgregar
+            )
+          }
           onCancel={() => {
-            if (actionLoading) return;
-            setPendienteAgregar(null);
+            if (
+              actionLoading
+            ) {
+              return;
+            }
+
+            setPendienteAgregar(
+              null
+            );
+
             setResultados([]);
           }}
-          isLoading={actionLoading === `add-${pendienteAgregar.id}`}
+          isLoading={
+            actionLoading ===
+            `add-${pendienteAgregar.id}`
+          }
           type="success"
         />
       )}
 
       {cambioRol && (
         <ChangeRoleModal
-          miembro={cambioRol.miembro}
-          nuevoRol={cambioRol.nuevoRol}
-          loading={actionLoading === `rol-${cambioRol.miembro.id}`}
+          miembro={
+            cambioRol.miembro
+          }
+          nuevoRol={
+            cambioRol.nuevoRol
+          }
+          loading={
+            actionLoading ===
+            `rol-${cambioRol.miembro.id}`
+          }
           onCancel={() => {
-            if (actionLoading) return;
-            setCambioRol(null);
+            if (
+              actionLoading
+            ) {
+              return;
+            }
+
+            setCambioRol(
+              null
+            );
           }}
           onConfirm={async () => {
-            const data = cambioRol;
-            setCambioRol(null);
-            await cambiarRol(data.miembro, data.nuevoRol);
+            const data =
+              cambioRol;
+
+            setCambioRol(
+              null
+            );
+
+            await cambiarRol(
+              data.miembro,
+              data.nuevoRol
+            );
           }}
         />
       )}
 
       {eliminando && (
         <RemoveMemberModal
-          miembro={eliminando}
-          loading={actionLoading === `del-${eliminando.id}`}
+          miembro={
+            eliminando
+          }
+          loading={
+            actionLoading ===
+            `del-${eliminando.id}`
+          }
           onCancel={() => {
-            if (actionLoading) return;
-            setEliminando(null);
+            if (
+              actionLoading
+            ) {
+              return;
+            }
+
+            setEliminando(
+              null
+            );
           }}
-          onConfirm={eliminarMiembro}
+          onConfirm={() =>
+            void eliminarMiembro()
+          }
         />
       )}
     </div>

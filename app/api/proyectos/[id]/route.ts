@@ -1,13 +1,36 @@
-//app/api/proyectos/[id]/route.ts
+// app/api/proyectos/[id]/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
-import { getUserIdFromRequest } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 
-/* ─────────────────────── Types helpers ─────────────────────── */
+/**
+ * =========================================================
+ * 📌 TIPOS AUXILIARES
+ * =========================================================
+ */
 
-type RolProyecto = 'owner' | 'admin' | 'miembro' | 'ninguno';
-type PermisoProyecto = 'owner' | 'owner_admin' | 'all_members';
-type ModoAccesoProyecto = 'privado' | 'publico' | 'solicitud';
+type RolProyecto =
+  | 'owner'
+  | 'admin'
+  | 'miembro'
+  | 'ninguno';
+
+/**
+ * Los permisos quedan alineados con proyectModel.ts.
+ */
+type PermisoProyecto =
+  | 'owner_admin'
+  | 'todos_miembros';
+
+type ModoAccesoProyecto =
+  | 'privado'
+  | 'publico'
+  | 'solicitud';
+
+type VisibilidadProyecto =
+  | 'privado'
+  | 'publico';
 
 type ProyectoRow = {
   id: number | bigint;
@@ -31,85 +54,212 @@ type MiembroRolRow = {
   rol_en_proyecto?: string | null;
 };
 
+/**
+ * =========================================================
+ * 🔄 CAST DE RESULTADOS
+ * =========================================================
+ */
 function castRows<T>(rows: unknown[]): T[] {
   return rows as T[];
 }
 
+/**
+ * =========================================================
+ * 👤 NORMALIZAR ROL EN PROYECTO
+ * =========================================================
+ *
+ * Convierte posibles variantes almacenadas en la base
+ * de datos al formato utilizado internamente.
+ */
 function normalizarRol(raw: unknown): RolProyecto {
-  const value = String(raw ?? '').toLowerCase().trim();
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
-  if (value === 'owner' || value === 'dueño' || value === 'dueno') return 'owner';
-  if (value === 'admin' || value === 'administrador') return 'admin';
-  if (value === 'miembro' || value === 'member') return 'miembro';
+  if (
+    value === 'owner' ||
+    value === 'dueño' ||
+    value === 'dueno'
+  ) {
+    return 'owner';
+  }
+
+  if (
+    value === 'admin' ||
+    value === 'administrador'
+  ) {
+    return 'admin';
+  }
+
+  if (
+    value === 'miembro' ||
+    value === 'member'
+  ) {
+    return 'miembro';
+  }
 
   return 'ninguno';
 }
 
-function normalizarPermiso(raw: unknown): PermisoProyecto {
-  const value = String(raw ?? '').toLowerCase().trim();
+/**
+ * =========================================================
+ * 🔐 NORMALIZAR PERMISOS
+ * =========================================================
+ *
+ * Valores válidos:
+ *
+ * owner_admin
+ * todos_miembros
+ *
+ * Si existe un valor antiguo "all_members",
+ * se convierte a "todos_miembros" para mantener
+ * compatibilidad con datos anteriores.
+ */
+function normalizarPermiso(
+  raw: unknown
+): PermisoProyecto {
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
-  if (value === 'owner') return 'owner';
-  if (value === 'owner_admin') return 'owner_admin';
-  if (value === 'all_members') return 'all_members';
+  if (
+    value === 'todos_miembros' ||
+    value === 'all_members'
+  ) {
+    return 'todos_miembros';
+  }
 
   return 'owner_admin';
 }
 
+/**
+ * =========================================================
+ * 🚪 NORMALIZAR MODO DE ACCESO
+ * =========================================================
+ *
+ * IMPORTANTE:
+ *
+ * modo_acceso y visibilidad son conceptos distintos.
+ *
+ * modo_acceso:
+ * - privado
+ * - publico
+ * - solicitud
+ */
 function normalizarModoAcceso(
-  rawModo: unknown,
-  rawVisibilidad?: unknown
+  raw: unknown
 ): ModoAccesoProyecto {
-  const modo = String(rawModo ?? '').toLowerCase().trim();
-  const visibilidad = String(rawVisibilidad ?? '').toLowerCase().trim();
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
-  if (modo === 'publico' || modo === 'público' || modo === 'public') {
+  if (
+    value === 'publico' ||
+    value === 'público' ||
+    value === 'public'
+  ) {
     return 'publico';
   }
 
   if (
-    modo === 'solicitud' ||
-    modo === 'request' ||
-    modo === 'invite' ||
-    modo === 'invitacion' ||
-    modo === 'invitación'
+    value === 'solicitud' ||
+    value === 'request' ||
+    value === 'invite' ||
+    value === 'invitacion' ||
+    value === 'invitación'
   ) {
     return 'solicitud';
   }
 
-  if (modo === 'privado' || modo === 'private') {
-    return 'privado';
-  }
+  return 'privado';
+}
 
-  if (visibilidad === 'publico' || visibilidad === 'público' || visibilidad === 'public') {
+/**
+ * =========================================================
+ * 👁️ NORMALIZAR VISIBILIDAD
+ * =========================================================
+ *
+ * visibilidad:
+ * - privado
+ * - publico
+ */
+function normalizarVisibilidad(
+  raw: unknown
+): VisibilidadProyecto {
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
+
+  if (
+    value === 'publico' ||
+    value === 'público' ||
+    value === 'public'
+  ) {
     return 'publico';
   }
 
   return 'privado';
 }
 
+/**
+ * =========================================================
+ * 🛡️ VALIDAR PERMISOS
+ * =========================================================
+ */
 function puedeSegunPermiso(
   permiso: PermisoProyecto,
   rol: RolProyecto
 ): boolean {
-  if (rol === 'ninguno') return false;
-
-  if (permiso === 'owner') {
-    return rol === 'owner';
+  if (rol === 'ninguno') {
+    return false;
   }
 
+  /**
+   * owner_admin:
+   *
+   * Puede actuar:
+   * - owner
+   * - admin
+   */
   if (permiso === 'owner_admin') {
-    return rol === 'owner' || rol === 'admin';
+    return (
+      rol === 'owner' ||
+      rol === 'admin'
+    );
   }
 
-  return rol === 'owner' || rol === 'admin' || rol === 'miembro';
+  /**
+   * todos_miembros:
+   *
+   * Puede actuar cualquier participante
+   * del proyecto.
+   */
+  return (
+    rol === 'owner' ||
+    rol === 'admin' ||
+    rol === 'miembro'
+  );
 }
 
+/**
+ * =========================================================
+ * 👥 OBTENER ROL DEL USUARIO EN EL PROYECTO
+ * =========================================================
+ */
 async function obtenerRolUsuarioEnProyecto(
   proyectoId: number,
   userId: string,
   creadorId: string | null
-): Promise<{ esOwner: boolean; rolProyecto: RolProyecto }> {
-  const esOwner = String(creadorId ?? '') === String(userId);
+): Promise<{
+  esOwner: boolean;
+  rolProyecto: RolProyecto;
+}> {
+  /**
+   * El creador siempre es owner independientemente
+   * del contenido de proyecto_usuarios.
+   */
+  const esOwner =
+    String(creadorId ?? '') === String(userId);
 
   if (esOwner) {
     return {
@@ -118,6 +268,10 @@ async function obtenerRolUsuarioEnProyecto(
     };
   }
 
+  /**
+   * Si no es creador, buscamos su relación
+   * en proyecto_usuarios.
+   */
   const miembroRes = await db.execute({
     sql: `
       SELECT rol_en_proyecto
@@ -126,45 +280,94 @@ async function obtenerRolUsuarioEnProyecto(
         AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
       LIMIT 1
     `,
-    args: [proyectoId, String(userId)],
+    args: [
+      proyectoId,
+      userId,
+    ],
   });
 
-  const miembroRows = castRows<MiembroRolRow>(miembroRes.rows);
+  const miembroRows =
+    castRows<MiembroRolRow>(
+      miembroRes.rows
+    );
+
   const miembro = miembroRows[0];
 
   return {
     esOwner: false,
-    rolProyecto: miembro ? normalizarRol(miembro.rol_en_proyecto) : 'ninguno',
+    rolProyecto: miembro
+      ? normalizarRol(miembro.rol_en_proyecto)
+      : 'ninguno',
   };
 }
 
-/* ─────────────────────── GET /api/proyectos/[id] ─────────────────────── */
-
+/**
+ * =========================================================
+ * GET /api/proyectos/[id]
+ * =========================================================
+ *
+ * Obtiene la información de un proyecto y calcula:
+ *
+ * - Rol del usuario.
+ * - Membresía.
+ * - Permiso de edición.
+ * - Permiso de gestión de tareas.
+ * - Posibilidad de solicitar acceso.
+ */
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  {
+    params,
+  }: {
+    params: Promise<{ id: string }>;
+  }
 ) {
   try {
-    const userId = await getUserIdFromRequest(req);
+    /**
+     * =====================================================
+     * 🔐 VALIDAR USUARIO AUTENTICADO
+     * =====================================================
+     */
+    const sessionUser =
+      await getAuthenticatedUser(req);
 
-    if (!userId) {
+    if (!sessionUser) {
       return NextResponse.json(
-        { error: 'No autenticado' },
+        {
+          ok: false,
+          error: 'No autenticado',
+        },
         { status: 401 }
       );
     }
 
+    /**
+     * =====================================================
+     * 📁 VALIDAR ID DEL PROYECTO
+     * =====================================================
+     */
     const { id } = await params;
-    const proyectoIdNum = Number(id);
+    const proyectoId = Number(id);
 
-    if (!Number.isFinite(proyectoIdNum)) {
+    if (
+      !Number.isInteger(proyectoId) ||
+      proyectoId < 1
+    ) {
       return NextResponse.json(
-        { error: 'ID de proyecto inválido' },
+        {
+          ok: false,
+          error: 'ID de proyecto inválido',
+        },
         { status: 400 }
       );
     }
 
-    const res = await db.execute({
+    /**
+     * =====================================================
+     * 🔎 OBTENER PROYECTO
+     * =====================================================
+     */
+    const result = await db.execute({
       sql: `
         SELECT
           p.id,
@@ -186,106 +389,226 @@ export async function GET(
         WHERE p.id = ?
         LIMIT 1
       `,
-      args: [proyectoIdNum],
+      args: [proyectoId],
     });
 
-    const rows = castRows<ProyectoRow>(res.rows);
+    const rows =
+      castRows<ProyectoRow>(
+        result.rows
+      );
+
     const row = rows[0];
 
     if (!row) {
       return NextResponse.json(
-        { error: 'Proyecto no existe' },
+        {
+          ok: false,
+          error: 'Proyecto no existe',
+        },
         { status: 404 }
       );
     }
 
-    const { esOwner, rolProyecto } = await obtenerRolUsuarioEnProyecto(
-      proyectoIdNum,
-      String(userId),
-      row.creador_id
-    );
+    /**
+     * =====================================================
+     * 👤 OBTENER ROL DEL USUARIO
+     * =====================================================
+     */
+    const {
+      esOwner,
+      rolProyecto,
+    } =
+      await obtenerRolUsuarioEnProyecto(
+        proyectoId,
+        sessionUser.id,
+        row.creador_id
+      );
 
-    const esMiembro = esOwner || rolProyecto !== 'ninguno';
+    const esMiembro =
+      esOwner ||
+      rolProyecto !== 'ninguno';
 
-    const modoAcceso = normalizarModoAcceso(row.modo_acceso, row.visibilidad);
+    /**
+     * =====================================================
+     * 👁️ VISIBILIDAD
+     * =====================================================
+     */
+    const visibilidad =
+      normalizarVisibilidad(
+        row.visibilidad
+      );
 
-    let puedeVerProyecto = false;
-    let canRequestAccess = false;
+    /**
+     * =====================================================
+     * 🚪 MODO DE ACCESO
+     * =====================================================
+     */
+    const modoAcceso =
+      normalizarModoAcceso(
+        row.modo_acceso
+      );
 
-    if (modoAcceso === 'publico') {
-      puedeVerProyecto = true;
-    } else if (modoAcceso === 'solicitud') {
-      puedeVerProyecto = esMiembro;
-      canRequestAccess = !esMiembro;
-    } else {
-      puedeVerProyecto = esMiembro;
-    }
+    /**
+     * =====================================================
+     * 🔒 CONTROL DE VISUALIZACIÓN
+     * =====================================================
+     *
+     * Miembros y owner siempre pueden ver el proyecto.
+     *
+     * Usuarios externos únicamente pueden ver
+     * proyectos con visibilidad pública.
+     */
+    const puedeVerProyecto =
+      esMiembro ||
+      visibilidad === 'publico';
 
     if (!puedeVerProyecto) {
       return NextResponse.json(
         {
+          ok: false,
           error:
-            modoAcceso === 'solicitud'
-              ? 'Requiere aprobación'
-              : 'Sin acceso a este proyecto',
-          canRequestAccess,
+            'Sin acceso a este proyecto',
+          canRequestAccess: false,
         },
         { status: 403 }
       );
     }
 
-    const permisoEditarProyectoNorm = normalizarPermiso(
-      row.permiso_editar_proyecto
-    );
+    /**
+     * =====================================================
+     * 📩 POSIBILIDAD DE SOLICITAR ACCESO
+     * =====================================================
+     *
+     * Solo usuarios externos pueden solicitar acceso,
+     * y únicamente cuando:
+     *
+     * modo_acceso = solicitud
+     */
+    const canRequestAccess =
+      !esMiembro &&
+      modoAcceso === 'solicitud';
 
-    const permisoGestionarTareasNorm = normalizarPermiso(
-      row.permiso_gestionar_tareas
-    );
+    /**
+     * =====================================================
+     * 🔐 PERMISOS DEL PROYECTO
+     * =====================================================
+     */
+    const permisoEditarProyecto =
+      normalizarPermiso(
+        row.permiso_editar_proyecto
+      );
 
-    const puede_editar_proyecto = puedeSegunPermiso(
-      permisoEditarProyectoNorm,
-      rolProyecto
-    );
+    const permisoGestionarTareas =
+      normalizarPermiso(
+        row.permiso_gestionar_tareas
+      );
 
-    const puede_gestionar_tareas = puedeSegunPermiso(
-      permisoGestionarTareasNorm,
-      rolProyecto
-    );
+    const puede_editar_proyecto =
+      puedeSegunPermiso(
+        permisoEditarProyecto,
+        rolProyecto
+      );
 
+    const puede_gestionar_tareas =
+      puedeSegunPermiso(
+        permisoGestionarTareas,
+        rolProyecto
+      );
+
+    /**
+     * =====================================================
+     * 📦 RESPUESTA DEL PROYECTO
+     * =====================================================
+     *
+     * El código de unión solo se devuelve a miembros.
+     */
     const proyecto = {
-      id: typeof row.id === 'bigint' ? Number(row.id) : Number(row.id),
-      nombre: row.nombre,
-      descripcion: row.descripcion,
-      creador_id: row.creador_id,
-      estado: row.estado,
-      codigo_union: esMiembro ? row.codigo_union : null,
-      modo_acceso: modoAcceso,
-      prioridad: row.prioridad,
-      visibilidad: row.visibilidad,
-      fecha_inicio: row.fecha_inicio,
-      fecha_fin: row.fecha_fin,
-      configuracion: row.configuracion,
-      ultima_actividad: row.ultima_actividad,
-      permiso_editar_proyecto: row.permiso_editar_proyecto,
-      permiso_gestionar_tareas: row.permiso_gestionar_tareas,
+      id: Number(row.id),
+
+      nombre:
+        row.nombre ?? '',
+
+      descripcion:
+        row.descripcion ?? null,
+
+      creador_id:
+        row.creador_id,
+
+      estado:
+        row.estado ?? 'activo',
+
+      codigo_union:
+        esMiembro
+          ? row.codigo_union
+          : null,
+
+      modo_acceso:
+        modoAcceso,
+
+      prioridad:
+        row.prioridad ?? 'media',
+
+      visibilidad,
+
+      fecha_inicio:
+        row.fecha_inicio ?? null,
+
+      fecha_fin:
+        row.fecha_fin ?? null,
+
+      configuracion:
+        row.configuracion ?? null,
+
+      ultima_actividad:
+        row.ultima_actividad ?? null,
+
+      permiso_editar_proyecto:
+        permisoEditarProyecto,
+
+      permiso_gestionar_tareas:
+        permisoGestionarTareas,
     };
 
+    /**
+     * =====================================================
+     * ✅ RESPUESTA FINAL
+     * =====================================================
+     */
     return NextResponse.json(
       {
+        ok: true,
+
         proyecto,
-        rol_en_proyecto: rolProyecto,
-        es_owner: esOwner,
-        es_miembro: esMiembro,
+
+        rol_en_proyecto:
+          rolProyecto,
+
+        es_owner:
+          esOwner,
+
+        es_miembro:
+          esMiembro,
+
         puede_editar_proyecto,
+
         puede_gestionar_tareas,
+
+        canRequestAccess,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error('GET /api/proyectos/[id] error:', error);
+    console.error(
+      'GET /api/proyectos/[id] error:',
+      error
+    );
 
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      {
+        ok: false,
+        error:
+          'Error interno del servidor',
+      },
       { status: 500 }
     );
   }

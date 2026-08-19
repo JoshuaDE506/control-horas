@@ -1,24 +1,38 @@
 // app/api/proyectos/[id]/tareas/[tareaId]/estado/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
-import { getUserIdFromRequest } from '@/lib/auth';
+import { getAuthenticatedUser } from '@/lib/auth';
 import { randomUUID } from 'crypto';
 
 export const runtime = 'nodejs';
 
-type Estado = 'todo' | 'in-progress' | 'review' | 'completed';
-type RolProyecto = 'owner' | 'admin' | 'miembro' | 'ninguno';
-type PermisoProyecto = 'owner' | 'owner_admin' | 'all_members';
-type ModoAccesoProyecto = 'privado' | 'publico' | 'solicitud';
+/**
+ * =========================================================
+ * 📌 TIPOS
+ * =========================================================
+ */
 
-type Params = { id: string; tareaId: string };
+type Params = {
+  id: string;
+  tareaId: string;
+};
+
+type EstadoTarea =
+  | 'todo'
+  | 'in-progress'
+  | 'review'
+  | 'completed';
+
+type RolProyecto =
+  | 'owner'
+  | 'admin'
+  | 'miembro'
+  | 'ninguno';
 
 type ProyectoRow = {
   id: number | bigint | null;
-  visibilidad: string | null;
-  modo_acceso: string | null;
   creador_id: string | null;
-  permiso_gestionar_tareas: string | null;
 };
 
 type TareaRow = {
@@ -32,457 +46,647 @@ type RolRow = {
   rol?: string | null;
 };
 
-function castRows<T>(rows: unknown[]): T[] {
+/**
+ * =========================================================
+ * 🔄 HELPERS
+ * =========================================================
+ */
+
+function castRows<T>(
+  rows: unknown[]
+): T[] {
   return rows as T[];
 }
 
 async function getParams(
-  context: { params: Params | Promise<Params> }
+  context: {
+    params:
+      | Params
+      | Promise<Params>;
+  }
 ): Promise<Params> {
   return await context.params;
 }
 
-function toProjectId(value: string): number | null {
+function toProjectId(
+  value: string
+): number | null {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < 1
+  ) {
+    return null;
+  }
+
+  return parsed;
 }
 
-function normalizeEstado(value: unknown): Estado | null {
-  const s = String(value ?? '').trim().toLowerCase();
+/**
+ * =========================================================
+ * 📋 NORMALIZAR ESTADO
+ * =========================================================
+ */
+function normalizeEstado(
+  value: unknown
+): EstadoTarea | null {
+  const estado =
+    String(value ?? '')
+      .trim()
+      .toLowerCase();
 
-  if (s === 'todo') return 'todo';
-  if (s === 'in-progress' || s === 'in_progress') return 'in-progress';
-  if (s === 'review' || s === 'revision' || s === 'revisión') return 'review';
-  if (s === 'completed') return 'completed';
+  if (estado === 'todo') {
+    return 'todo';
+  }
+
+  if (
+    estado === 'in-progress' ||
+    estado === 'in_progress' ||
+    estado === 'en progreso' ||
+    estado === 'en_progreso'
+  ) {
+    return 'in-progress';
+  }
+
+  if (
+    estado === 'review' ||
+    estado === 'revision' ||
+    estado === 'revisión'
+  ) {
+    return 'review';
+  }
+
+  if (
+    estado === 'completed' ||
+    estado === 'completado' ||
+    estado === 'completada'
+  ) {
+    return 'completed';
+  }
 
   return null;
 }
 
-function isValidTransition(
-  from: Estado,
-  to: Estado,
-  options?: { rejected?: boolean; reopen?: boolean }
-): boolean {
-  if (from === to) return true;
-
-  switch (from) {
-    case 'todo':
-      return to === 'in-progress';
-
-    case 'in-progress':
-      return to === 'review';
-
-    case 'review':
-      if (to === 'completed') return true;
-      if (to === 'in-progress' && options?.rejected) return true;
-      return false;
-
-    case 'completed':
-      if (to === 'todo' && options?.reopen) return true;
-      return false;
-
-    default:
-      return false;
-  }
-}
-
-function normalizarRol(raw: unknown): RolProyecto {
-  const v = String(raw ?? '').toLowerCase().trim();
-
-  if (v === 'owner' || v === 'dueño' || v === 'dueno') return 'owner';
-  if (v === 'admin' || v === 'administrador') return 'admin';
-  if (v === 'miembro' || v === 'member') return 'miembro';
-
-  return 'ninguno';
-}
-
-function normalizarPermisoDesdeDB(raw: unknown): PermisoProyecto {
-  const v = String(raw ?? '').toLowerCase().trim();
+/**
+ * =========================================================
+ * 👤 NORMALIZAR ROL
+ * =========================================================
+ */
+function normalizarRol(
+  raw: unknown
+): RolProyecto {
+  const value =
+    String(raw ?? '')
+      .trim()
+      .toLowerCase();
 
   if (
-    [
-      'owner',
-      'solo_dueno',
-      'solo dueño',
-      'solo el dueno',
-      'solo el dueño',
-      'owner_only',
-      'dueno',
-      'dueño',
-    ].includes(v)
+    value === 'owner' ||
+    value === 'dueño' ||
+    value === 'dueno'
   ) {
     return 'owner';
   }
 
   if (
-    [
-      'all_members',
-      'todos_miembros',
-      'todos los miembros',
-      'todos_los_miembros',
-      'todos',
-      'miembros',
-      'members',
-      'miembros_todos',
-    ].includes(v)
+    value === 'admin' ||
+    value === 'administrador'
   ) {
-    return 'all_members';
-  }
-
-  return 'owner_admin';
-}
-
-function normalizarModoAcceso(
-  rawModo: unknown,
-  rawVisibilidad?: unknown
-): ModoAccesoProyecto {
-  const modo = String(rawModo ?? '').toLowerCase().trim();
-  const vis = String(rawVisibilidad ?? '').toLowerCase().trim();
-
-  if (modo === 'publico' || modo === 'público' || modo === 'public') {
-    return 'publico';
+    return 'admin';
   }
 
   if (
-    modo === 'solicitud' ||
-    modo === 'request' ||
-    modo === 'invitacion' ||
-    modo === 'invitación' ||
-    modo === 'invite'
+    value === 'miembro' ||
+    value === 'member'
   ) {
-    return 'solicitud';
+    return 'miembro';
   }
 
-  if (modo === 'privado' || modo === 'private') {
-    return 'privado';
-  }
-
-  if (vis === 'publico' || vis === 'público' || vis === 'public') {
-    return 'publico';
-  }
-
-  return 'privado';
+  return 'ninguno';
 }
 
-function puedeGestionarSegunPermiso(
-  permiso: PermisoProyecto,
-  rol: RolProyecto
-): boolean {
-  if (rol === 'ninguno') return false;
-
-  if (permiso === 'owner') {
-    return rol === 'owner';
-  }
-
-  if (permiso === 'owner_admin') {
-    return rol === 'owner' || rol === 'admin';
-  }
-
-  return rol === 'owner' || rol === 'admin' || rol === 'miembro';
-}
-
-function toSafeNumber(value: number | bigint | null | undefined): number | null {
-  if (value == null) return null;
-  return typeof value === 'bigint' ? Number(value) : Number(value);
-}
-
+/**
+ * =========================================================
+ * PATCH /api/proyectos/[id]/tareas/[tareaId]/estado
+ * =========================================================
+ *
+ * IMPORTANTE:
+ *
+ * Esta ruta YA NO maneja el flujo normal:
+ *
+ * todo → in-progress
+ *      usar /comenzar
+ *
+ * in-progress → review
+ *      usar /completar
+ *
+ * review → in-progress
+ *      usar /rechazar
+ *
+ * review → completed
+ *      usar /aprobar
+ *
+ * Esta ruta queda solamente para:
+ *
+ * completed → todo
+ *
+ * mediante una reapertura administrativa explícita.
+ */
 export async function PATCH(
   req: NextRequest,
-  context: { params: Params | Promise<Params> }
+  context: {
+    params:
+      | Params
+      | Promise<Params>;
+  }
 ) {
   try {
-    const userId = await getUserIdFromRequest(req);
+    /**
+     * =====================================================
+     * 🔐 AUTENTICACIÓN
+     * =====================================================
+     */
+    const sessionUser =
+      await getAuthenticatedUser(req);
 
-    if (!userId) {
-      return NextResponse.json(
-        { ok: false, error: 'No autenticado' },
-        { status: 401 }
-      );
-    }
-
-    const { id, tareaId } = await getParams(context);
-    const proyectoId = toProjectId(id);
-
-    if (proyectoId == null || !tareaId) {
-      return NextResponse.json(
-        { ok: false, error: 'Parámetros inválidos' },
-        { status: 400 }
-      );
-    }
-
-    const body = await req.json().catch(() => ({}));
-    const nuevoEstado = normalizeEstado(body?.estado);
-    const rejected = body?.rejected === true;
-    const reopen = body?.reopen === true;
-    const comentario =
-      typeof body?.comentario === 'string' ? body.comentario.trim() : '';
-
-    if (!nuevoEstado) {
-      return NextResponse.json(
-        { ok: false, error: 'Estado inválido' },
-        { status: 400 }
-      );
-    }
-
-    const proyectoRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          visibilidad,
-          modo_acceso,
-          creador_id,
-          permiso_gestionar_tareas
-        FROM proyectos
-        WHERE id = ?
-        LIMIT 1
-      `,
-      args: [proyectoId],
-    });
-
-    const proyectoRows = castRows<ProyectoRow>(proyectoRes.rows);
-    const proyecto = proyectoRows[0];
-
-    if (!proyecto) {
-      return NextResponse.json(
-        { ok: false, error: 'Proyecto no existe' },
-        { status: 404 }
-      );
-    }
-
-    const modoAcceso = normalizarModoAcceso(
-      proyecto.modo_acceso,
-      proyecto.visibilidad
-    );
-
-    const permisoProyecto = normalizarPermisoDesdeDB(
-      proyecto.permiso_gestionar_tareas
-    );
-
-    const esOwnerProyecto =
-      proyecto.creador_id != null &&
-      String(proyecto.creador_id) === String(userId);
-
-    const rolRes = await db.execute({
-      sql: `
-        SELECT rol_en_proyecto AS rol
-        FROM proyecto_usuarios
-        WHERE proyecto_id = ?
-          AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-        LIMIT 1
-      `,
-      args: [proyectoId, String(userId)],
-    });
-
-    const rolRows = castRows<RolRow>(rolRes.rows);
-    const rawRol = rolRows[0]?.rol ?? null;
-
-    const rolProyecto: RolProyecto = esOwnerProyecto
-      ? 'owner'
-      : normalizarRol(rawRol);
-
-    const esMember = rolProyecto === 'admin' || rolProyecto === 'miembro';
-
-    let canAccess = false;
-    let canRequestAccess = false;
-
-    if (modoAcceso === 'publico') {
-      canAccess = true;
-    } else if (modoAcceso === 'solicitud') {
-      canAccess = esOwnerProyecto || esMember;
-      canRequestAccess = !canAccess;
-    } else {
-      canAccess = esOwnerProyecto || esMember;
-    }
-
-    if (!canAccess) {
+    if (!sessionUser) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            modoAcceso === 'solicitud'
-              ? 'Requiere aprobación'
-              : 'Sin acceso a este proyecto',
-          canRequestAccess,
+            'No autenticado',
         },
-        { status: 403 }
+        { status: 401 }
       );
     }
 
-    const tareaRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          proyecto_id,
-          estado,
-          creador_id
-        FROM tareas
-        WHERE id = ?
-          AND proyecto_id = ?
-        LIMIT 1
-      `,
-      args: [String(tareaId), proyectoId],
-    });
+    const userId =
+      String(sessionUser.id);
 
-    const tareaRows = castRows<TareaRow>(tareaRes.rows);
-    const tarea = tareaRows[0];
+    /**
+     * =====================================================
+     * 📁 PARÁMETROS
+     * =====================================================
+     */
+    const {
+      id,
+      tareaId,
+    } = await getParams(
+      context
+    );
 
-    if (!tarea) {
+    const proyectoId =
+      toProjectId(id);
+
+    if (
+      proyectoId == null ||
+      !tareaId
+    ) {
       return NextResponse.json(
-        { ok: false, error: 'Tarea no existe' },
+        {
+          ok: false,
+          error:
+            'Parámetros inválidos',
+        },
+        { status: 400 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 📝 BODY
+     * =====================================================
+     */
+    const body =
+      await req
+        .json()
+        .catch(() => ({}));
+
+    const nuevoEstado =
+      normalizeEstado(
+        body?.estado
+      );
+
+    const reopen =
+      body?.reopen === true;
+
+    const comentario =
+      typeof body?.comentario ===
+        'string'
+        ? body.comentario.trim()
+        : '';
+
+    if (!nuevoEstado) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Estado inválido',
+        },
+        { status: 400 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 📁 OBTENER PROYECTO
+     * =====================================================
+     */
+    const proyectoRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            creador_id
+          FROM proyectos
+          WHERE id = ?
+          LIMIT 1
+        `,
+        args: [
+          proyectoId,
+        ],
+      });
+
+    const proyectoRows =
+      castRows<ProyectoRow>(
+        proyectoRes.rows
+      );
+
+    const proyecto =
+      proyectoRows[0];
+
+    if (!proyecto) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Proyecto no existe',
+        },
         { status: 404 }
       );
     }
 
-    const estadoActual: Estado = normalizeEstado(tarea.estado) ?? 'todo';
+    /**
+     * =====================================================
+     * 👤 RESOLVER ROL
+     * =====================================================
+     */
+    const esOwnerProyecto =
+      String(
+        proyecto.creador_id ?? ''
+      ) === userId;
 
-    if (!isValidTransition(estadoActual, nuevoEstado, { rejected, reopen })) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: `No se permite cambiar de "${estadoActual}" a "${nuevoEstado}"`,
-        },
-        { status: 400 }
-      );
+    let rolProyecto:
+      RolProyecto;
+
+    if (esOwnerProyecto) {
+      rolProyecto =
+        'owner';
+    } else {
+      const rolRes =
+        await db.execute({
+          sql: `
+            SELECT
+              rol_en_proyecto
+                AS rol
+            FROM proyecto_usuarios
+            WHERE proyecto_id = ?
+              AND CAST(
+                    usuario_id
+                    AS TEXT
+                  )
+                  =
+                  CAST(
+                    ?
+                    AS TEXT
+                  )
+            LIMIT 1
+          `,
+          args: [
+            proyectoId,
+            userId,
+          ],
+        });
+
+      const rolRows =
+        castRows<RolRow>(
+          rolRes.rows
+        );
+
+      rolProyecto =
+        normalizarRol(
+          rolRows[0]?.rol
+        );
     }
 
-    if (estadoActual === 'review' && nuevoEstado === 'in-progress' && !rejected) {
+    /**
+     * =====================================================
+     * 🔒 VALIDAR ACCESO
+     * =====================================================
+     */
+    if (
+      rolProyecto ===
+      'ninguno'
+    ) {
       return NextResponse.json(
         {
           ok: false,
-          error: 'Solo se puede volver de review a in-progress cuando la tarea fue rechazada',
-        },
-        { status: 400 }
-      );
-    }
-
-    if (estadoActual === 'completed' && nuevoEstado === 'todo' && !reopen) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'Solo se puede volver de completed a todo cuando la tarea se reabre explícitamente',
-        },
-        { status: 400 }
-      );
-    }
-
-    const esCreadorTarea =
-      tarea.creador_id != null && String(tarea.creador_id) === String(userId);
-
-    const asignadoRes = await db.execute({
-      sql: `
-        SELECT 1
-        FROM tarea_asignaciones
-        WHERE tarea_id = ?
-          AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-          AND estado = 'activo'
-        LIMIT 1
-      `,
-      args: [String(tareaId), String(userId)],
-    });
-
-    const estaAsignadoActivo = !!asignadoRes.rows?.length;
-
-    const esAdminProyecto = rolProyecto === 'admin';
-    const esMiembroComun = rolProyecto === 'miembro';
-
-    const puedeGestionProyecto = puedeGestionarSegunPermiso(
-      permisoProyecto,
-      rolProyecto
-    );
-
-    const puedeCambiarEstado =
-      esOwnerProyecto ||
-      esAdminProyecto ||
-      esCreadorTarea ||
-      (esMiembroComun && puedeGestionProyecto && estaAsignadoActivo);
-
-    if (!puedeCambiarEstado) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: 'No tienes permisos para cambiar el estado de esta tarea',
+          error:
+            'Sin acceso a este proyecto',
         },
         { status: 403 }
       );
     }
 
-    if (estadoActual === 'completed' && nuevoEstado === 'todo') {
-      const puedeReabrir = esOwnerProyecto || esAdminProyecto;
+    /**
+     * =====================================================
+     * 🛡️ SOLO OWNER / ADMIN
+     * =====================================================
+     *
+     * Una reapertura modifica una tarea que ya había
+     * sido aprobada, por lo que solamente owner/admin
+     * pueden realizarla.
+     */
+    const esAdminProyecto =
+      rolProyecto === 'admin';
 
-      if (!puedeReabrir) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: 'Solo el owner o admin del proyecto puede reabrir una tarea completada',
+    if (
+      !esOwnerProyecto &&
+      !esAdminProyecto
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Solo el owner o un admin pueden cambiar administrativamente el estado de una tarea',
+        },
+        { status: 403 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 📋 OBTENER TAREA
+     * =====================================================
+     */
+    const tareaRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            proyecto_id,
+            estado,
+            creador_id
+          FROM tareas
+          WHERE id = ?
+            AND proyecto_id = ?
+          LIMIT 1
+        `,
+        args: [
+          String(tareaId),
+          proyectoId,
+        ],
+      });
+
+    const tareaRows =
+      castRows<TareaRow>(
+        tareaRes.rows
+      );
+
+    const tarea =
+      tareaRows[0];
+
+    if (!tarea) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Tarea no existe',
+        },
+        { status: 404 }
+      );
+    }
+
+    const estadoActual =
+      normalizeEstado(
+        tarea.estado
+      ) ?? 'todo';
+
+    /**
+     * =====================================================
+     * 🔁 MISMO ESTADO
+     * =====================================================
+     */
+    if (
+      estadoActual ===
+      nuevoEstado
+    ) {
+      return NextResponse.json(
+        {
+          ok: true,
+          message:
+            'La tarea ya se encuentra en ese estado',
+          tarea: {
+            id:
+              String(tarea.id),
+            estado:
+              estadoActual,
           },
-          { status: 403 }
-        );
-      }
+        },
+        { status: 200 }
+      );
     }
 
-    const now = new Date().toISOString();
-
-    let extraSql = '';
-    const extraArgs: Array<string | number | null> = [];
-
-    if (estadoActual === 'todo' && nuevoEstado === 'in-progress') {
-      extraSql += ', fecha_inicio_trabajo = COALESCE(fecha_inicio_trabajo, ?)';
-      extraArgs.push(now);
+    /**
+     * =====================================================
+     * 🚫 BLOQUEAR TRANSICIONES OPERATIVAS
+     * =====================================================
+     */
+    if (
+      estadoActual === 'todo' &&
+      nuevoEstado ===
+        'in-progress'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Para comenzar una tarea utiliza la ruta /comenzar',
+        },
+        { status: 409 }
+      );
     }
 
-    if (estadoActual === 'in-progress' && nuevoEstado === 'review') {
-      extraSql += ', fecha_envio_revision = ?';
-      extraArgs.push(now);
+    if (
+      estadoActual ===
+        'in-progress' &&
+      nuevoEstado === 'review'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Para enviar una tarea a revisión utiliza la ruta /completar',
+        },
+        { status: 409 }
+      );
     }
 
-    if (estadoActual === 'review' && nuevoEstado === 'completed') {
-      extraSql += ', fecha_aprobacion = ?, aprobado_por = ?';
-      extraArgs.push(now, String(userId));
+    if (
+      estadoActual === 'review' &&
+      nuevoEstado ===
+        'in-progress'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Para rechazar una tarea utiliza la ruta /rechazar',
+        },
+        { status: 409 }
+      );
     }
 
-    if (estadoActual === 'review' && nuevoEstado === 'in-progress' && rejected) {
-      extraSql += ', ultimo_rechazo_comentario = ?';
-      extraArgs.push(comentario || null);
+    if (
+      estadoActual === 'review' &&
+      nuevoEstado ===
+        'completed'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Para aprobar una tarea utiliza la ruta /aprobar',
+        },
+        { status: 409 }
+      );
     }
 
-    if (estadoActual === 'completed' && nuevoEstado === 'todo' && reopen) {
-      extraSql += `
-        , fecha_aprobacion = NULL
-        , aprobado_por = NULL
-        , fecha_envio_revision = NULL
-        , ultimo_rechazo_comentario = NULL
-      `;
+    /**
+     * =====================================================
+     * ✅ ÚNICA TRANSICIÓN ADMINISTRATIVA PERMITIDA
+     * =====================================================
+     *
+     * completed → todo
+     *
+     * Debe enviarse:
+     *
+     * {
+     *   "estado": "todo",
+     *   "reopen": true
+     * }
+     */
+    const esReapertura =
+      estadoActual ===
+        'completed' &&
+      nuevoEstado ===
+        'todo' &&
+      reopen;
+
+    if (!esReapertura) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            `No se permite cambiar manualmente de "${estadoActual}" a "${nuevoEstado}"`,
+        },
+        { status: 409 }
+      );
     }
 
-    const sql = `
-      UPDATE tareas
-      SET estado = ?,
-          actualizado_en = ?
-          ${extraSql}
-      WHERE id = ?
-        AND proyecto_id = ?
-    `;
+    const now =
+      new Date().toISOString();
 
-    const args: Array<string | number | null> = [
-      nuevoEstado,
-      now,
-      ...extraArgs,
-      String(tareaId),
-      proyectoId,
-    ];
-
+    /**
+     * =====================================================
+     * 🔄 REABRIR TAREA
+     * =====================================================
+     *
+     * Regresa la tarea a todo.
+     *
+     * Se eliminan únicamente los datos correspondientes
+     * a la aprobación anterior.
+     *
+     * El historial y los registros de horas anteriores
+     * NO se eliminan.
+     */
     await db.execute({
-      sql,
-      args,
+      sql: `
+        UPDATE tareas
+        SET
+          estado = 'todo',
+
+          fecha_aprobacion = NULL,
+
+          aprobado_por = NULL,
+
+          fecha_envio_revision = NULL,
+
+          ultimo_rechazo_comentario = NULL,
+
+          actualizado_en = ?
+
+        WHERE id = ?
+          AND proyecto_id = ?
+      `,
+      args: [
+        now,
+        String(tareaId),
+        proyectoId,
+      ],
     });
 
+    /**
+     * =====================================================
+     * 👥 REINICIAR ESTADO DE ASIGNACIONES
+     * =====================================================
+     *
+     * La tarea fue reabierta.
+     *
+     * Los participantes anteriores dejan de aparecer como
+     * completados.
+     *
+     * No eliminamos iniciado_en porque representa cuándo
+     * comenzaron originalmente su participación.
+     */
+    await db.execute({
+      sql: `
+        UPDATE tarea_asignaciones
+        SET
+          completado_en = NULL
+        WHERE tarea_id = ?
+          AND estado = 'activo'
+      `,
+      args: [
+        String(tareaId),
+      ],
+    });
+
+    /**
+     * =====================================================
+     * ⏱️ REGISTRO DE HORAS
+     * =====================================================
+     *
+     * NO iniciamos ningún cronómetro.
+     *
+     * Los registros anteriores permanecen finalizados.
+     *
+     * Cuando alguien vuelva a trabajar:
+     *
+     * /comenzar
+     *
+     * creará un nuevo registro_horas.
+     */
+
+    /**
+     * =====================================================
+     * 📜 HISTORIAL
+     * =====================================================
+     */
     const comentarioHistorial =
       comentario ||
-      (reopen
-        ? `Reapertura: ${estadoActual} → ${nuevoEstado}`
-        : rejected
-          ? `Rechazo: ${estadoActual} → ${nuevoEstado}`
-          : `Cambio de estado: ${estadoActual} → ${nuevoEstado}`);
+      'Tarea reabierta';
 
     try {
       await db.execute({
@@ -496,59 +700,118 @@ export async function PATCH(
             comentario,
             creado_en
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          VALUES (
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
+          )
         `,
         args: [
           randomUUID(),
           String(tareaId),
-          String(userId),
-          estadoActual,
-          nuevoEstado,
+          userId,
+          'completed',
+          'todo',
           comentarioHistorial,
           now,
         ],
       });
-    } catch (e) {
-      console.warn('No se pudo insertar en tarea_historial:', e);
+    } catch (error) {
+      console.warn(
+        'No se pudo insertar en tarea_historial:',
+        error
+      );
     }
 
-    const tareaUpdatedRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          proyecto_id,
-          estado,
-          creador_id
-        FROM tareas
-        WHERE id = ?
-          AND proyecto_id = ?
-        LIMIT 1
-      `,
-      args: [String(tareaId), proyectoId],
-    });
+    /**
+     * =====================================================
+     * 🔎 RECARGAR TAREA
+     * =====================================================
+     */
+    const tareaUpdatedRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            proyecto_id,
+            estado,
+            creador_id,
+            fecha_aprobacion,
+            aprobado_por,
+            fecha_envio_revision,
+            ultimo_rechazo_comentario,
+            actualizado_en
+          FROM tareas
+          WHERE id = ?
+            AND proyecto_id = ?
+          LIMIT 1
+        `,
+        args: [
+          String(tareaId),
+          proyectoId,
+        ],
+      });
 
-    const tareaUpdated = tareaUpdatedRes.rows?.[0] ?? null;
+    const tareaUpdated =
+      tareaUpdatedRes.rows?.[0] ??
+      null;
 
+    /**
+     * =====================================================
+     * ✅ RESPUESTA FINAL
+     * =====================================================
+     */
     return NextResponse.json(
       {
         ok: true,
-        tarea: tareaUpdated,
+
+        message:
+          'Tarea reabierta correctamente',
+
+        tarea:
+          tareaUpdated,
+
         meta: {
-          rolProyecto,
-          esOwnerProyecto,
-          esAdminProyecto,
-          esCreadorTarea,
-          estaAsignadoActivo,
-          proyecto_id: toSafeNumber(tarea.proyecto_id),
+          estado_anterior:
+            estadoActual,
+
+          estado_nuevo:
+            'todo',
+
+          reabierta:
+            true,
+
+          rol_proyecto:
+            rolProyecto,
+
+          es_owner_proyecto:
+            esOwnerProyecto,
+
+          es_admin_proyecto:
+            esAdminProyecto,
+
+          cronometro_activo:
+            false,
         },
       },
       { status: 200 }
     );
-  } catch (err) {
-    console.error('PATCH /api/proyectos/[id]/tareas/[tareaId]/estado error:', err);
+  } catch (error) {
+    console.error(
+      'PATCH /api/proyectos/[id]/tareas/[tareaId]/estado error:',
+      error
+    );
 
     return NextResponse.json(
-      { ok: false, error: 'Error interno del servidor' },
+      {
+        ok: false,
+        error:
+          'Error interno del servidor',
+      },
       { status: 500 }
     );
   }

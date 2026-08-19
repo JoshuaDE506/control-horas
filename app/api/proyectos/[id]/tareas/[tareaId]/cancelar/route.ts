@@ -1,4 +1,5 @@
-// app/api/proyectos/[id]/tareas/[tareaId]/cancelar/route.ts
+// app/api/proyectos/[id]/tareas/[tareaId]/informes/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/database';
 import { getAuthenticatedUser } from '@/lib/auth';
@@ -6,136 +7,199 @@ import { randomUUID } from 'crypto';
 
 export const runtime = 'nodejs';
 
-type Params = { id: string; tareaId: string };
-type ModoAccesoProyecto = 'privado' | 'publico' | 'solicitud';
-type EstadoTarea = 'todo' | 'in-progress' | 'review' | 'completed';
+/**
+ * =========================================================
+ * 📌 TIPOS AUXILIARES
+ * =========================================================
+ */
+
+type EstadoTarea =
+  | 'todo'
+  | 'in-progress'
+  | 'review'
+  | 'completed';
+
+type TipoInforme =
+  | 'avance'
+  | 'final';
 
 type ProyectoRow = {
   id: number | bigint | null;
-  visibilidad: string | null;
-  modo_acceso: string | null;
   creador_id: string | null;
 };
 
 type TareaRow = {
   id: string;
   estado: string | null;
+  proyecto_id: number | bigint | null;
+  ultimo_rechazo_comentario?: string | null;
 };
 
-type AsignacionRow = {
+type InformeRow = {
   id: string;
-  iniciado_en: string | null;
-  completado_en: string | null;
+  tarea_id: string;
+  usuario_id: string;
+  tipo: string | null;
+  titulo: string | null;
+  descripcion: string | null;
+  url_archivo: string | null;
+  creado_en: string | null;
 };
 
-type CountRow = {
-  c: number | bigint | null;
-};
+/**
+ * =========================================================
+ * 🔄 HELPERS
+ * =========================================================
+ */
 
-type RegistroHorasRow = {
-  id: string;
-  iniciado_en: string | null;
-  pausado_en: string | null;
-  detenido_en: string | null;
-  total_segundos: number | bigint | null;
-  estado: string | null;
-};
-
-async function getParams(
-  context: { params: Params | Promise<Params> }
-): Promise<Params> {
-  return await context.params;
-}
-
-function castRows<T>(rows: unknown[]): T[] {
+function castRows<T>(
+  rows: unknown[]
+): T[] {
   return rows as T[];
 }
 
-function toProjectId(value: string): number | null {
+function toProjectId(
+  value: string
+): number | null {
   const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+
+  if (
+    !Number.isInteger(parsed) ||
+    parsed < 1
+  ) {
+    return null;
+  }
+
+  return parsed;
 }
 
-function toNumber(value: number | bigint | null | undefined): number {
-  if (value == null) return 0;
-  return typeof value === 'bigint' ? Number(value) : Number(value);
-}
+/**
+ * =========================================================
+ * 📋 NORMALIZAR ESTADO
+ * =========================================================
+ */
+function normalizeEstado(
+  raw: unknown
+): EstadoTarea {
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
-function normalizeEstado(raw: unknown): EstadoTarea {
-  const value = String(raw ?? '').toLowerCase().trim();
+  if (
+    value === 'in-progress' ||
+    value === 'in_progress' ||
+    value === 'en progreso' ||
+    value === 'en_progreso'
+  ) {
+    return 'in-progress';
+  }
 
-  if (value === 'in-progress' || value === 'in_progress') return 'in-progress';
-  if (value === 'review' || value === 'revision' || value === 'revisión') {
+  if (
+    value === 'review' ||
+    value === 'revision' ||
+    value === 'revisión'
+  ) {
     return 'review';
   }
-  if (value === 'completed') return 'completed';
+
+  if (
+    value === 'completed' ||
+    value === 'completado' ||
+    value === 'completada'
+  ) {
+    return 'completed';
+  }
+
   return 'todo';
 }
 
-function normalizarModoAcceso(
-  rawModo: unknown,
-  rawVisibilidad?: unknown
-): ModoAccesoProyecto {
-  const modo = String(rawModo ?? '').toLowerCase().trim();
-  const vis = String(rawVisibilidad ?? '').toLowerCase().trim();
+/**
+ * =========================================================
+ * 📄 NORMALIZAR TIPO DE INFORME
+ * =========================================================
+ */
+function normalizeTipoInforme(
+  raw: unknown
+): TipoInforme | null {
+  const value = String(raw ?? '')
+    .toLowerCase()
+    .trim();
 
-  if (modo === 'publico' || modo === 'público' || modo === 'public') return 'publico';
-
-  if (
-    modo === 'solicitud' ||
-    modo === 'request' ||
-    modo === 'invitacion' ||
-    modo === 'invitación' ||
-    modo === 'invite'
-  ) {
-    return 'solicitud';
+  if (value === 'avance') {
+    return 'avance';
   }
 
-  if (modo === 'privado' || modo === 'private') return 'privado';
-  if (vis === 'publico' || vis === 'público' || vis === 'public') return 'publico';
+  if (value === 'final') {
+    return 'final';
+  }
 
-  return 'privado';
+  return null;
 }
 
-function diffSeconds(fromIso: string, toIso: string): number {
-  const from = new Date(fromIso).getTime();
-  const to = new Date(toIso).getTime();
-
-  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
-
-  return Math.max(0, Math.floor((to - from) / 1000));
-}
-
-export async function POST(
-  req: NextRequest,
-  context: { params: Params | Promise<Params> }
+/**
+ * =========================================================
+ * 📦 MAPEAR INFORME
+ * =========================================================
+ */
+function mapInforme(
+  row: InformeRow
 ) {
-  try {
-    const sessionUser = await getAuthenticatedUser(req);
+  return {
+    id:
+      String(row.id),
 
-    if (!sessionUser) {
-      return NextResponse.json(
-        { ok: false, error: 'No autenticado' },
-        { status: 401 }
-      );
-    }
+    tarea_id:
+      String(row.tarea_id),
 
-    const userId = String(sessionUser.id);
-    const { id, tareaId } = await getParams(context);
-    const proyectoId = toProjectId(id);
+    usuario_id:
+      String(row.usuario_id),
 
-    if (proyectoId == null || !tareaId) {
-      return NextResponse.json(
-        { ok: false, error: 'Parámetros inválidos' },
-        { status: 400 }
-      );
-    }
+    tipo:
+      normalizeTipoInforme(
+        row.tipo
+      ),
 
-    const now = new Date().toISOString();
+    titulo:
+      row.titulo ?? '',
 
-    const proyectoRes = await db.execute({
+    descripcion:
+      row.descripcion ?? '',
+
+    url_archivo:
+      row.url_archivo ?? null,
+
+    creado_en:
+      row.creado_en ?? null,
+  };
+}
+
+/**
+ * =========================================================
+ * 🔐 VALIDAR ACCESO AL PROYECTO
+ * =========================================================
+ *
+ * Los informes forman parte de la información interna.
+ *
+ * Solo pueden acceder:
+ *
+ * - owner
+ * - admin
+ * - miembro
+ */
+async function validarAccesoProyecto(
+  proyectoId: number,
+  userId: string
+): Promise<{
+  proyecto: ProyectoRow | null;
+  esCreador: boolean;
+  esMiembro: boolean;
+}> {
+  const proyectoRes =
+    await db.execute({
       sql: `
-        SELECT id, visibilidad, modo_acceso, creador_id
+        SELECT
+          id,
+          creador_id
         FROM proyectos
         WHERE id = ?
         LIMIT 1
@@ -143,244 +207,707 @@ export async function POST(
       args: [proyectoId],
     });
 
-    const proyectoRows = castRows<ProyectoRow>(proyectoRes.rows);
-    const proyecto = proyectoRows[0];
+  const proyectoRows =
+    castRows<ProyectoRow>(
+      proyectoRes.rows
+    );
 
-    if (!proyecto) {
-      return NextResponse.json(
-        { ok: false, error: 'Proyecto no existe' },
-        { status: 404 }
-      );
-    }
+  const proyecto =
+    proyectoRows[0] ?? null;
 
-    const isCreator = String(proyecto.creador_id ?? '') === userId;
+  if (!proyecto) {
+    return {
+      proyecto: null,
+      esCreador: false,
+      esMiembro: false,
+    };
+  }
 
-    const memberRes = await db.execute({
+  const esCreador =
+    String(
+      proyecto.creador_id ?? ''
+    ) === String(userId);
+
+  const memberRes =
+    await db.execute({
       sql: `
         SELECT 1
         FROM proyecto_usuarios
         WHERE proyecto_id = ?
-          AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
+          AND CAST(usuario_id AS TEXT)
+            = CAST(? AS TEXT)
         LIMIT 1
       `,
-      args: [proyectoId, userId],
+      args: [
+        proyectoId,
+        userId,
+      ],
     });
 
-    const isMember = !!memberRes.rows?.length;
-
-    const modoAcceso = normalizarModoAcceso(
-      proyecto.modo_acceso,
-      proyecto.visibilidad
+  const esMiembro =
+    Boolean(
+      memberRes.rows?.length
     );
 
-    let canAccess = false;
-    let canRequestAccess = false;
+  return {
+    proyecto,
+    esCreador,
+    esMiembro,
+  };
+}
 
-    if (modoAcceso === 'publico') {
-      canAccess = true;
-    } else if (modoAcceso === 'solicitud') {
-      canAccess = isCreator || isMember;
-      canRequestAccess = !canAccess;
-    } else {
-      canAccess = isCreator || isMember;
+/**
+ * =========================================================
+ * GET /api/proyectos/[id]/tareas/[tareaId]/informes
+ * =========================================================
+ *
+ * Lista todos los informes asociados a una tarea.
+ */
+export async function GET(
+  req: NextRequest,
+  {
+    params,
+  }: {
+    params: Promise<{
+      id: string;
+      tareaId: string;
+    }>;
+  }
+) {
+  try {
+    /**
+     * =====================================================
+     * 🔐 VALIDAR USUARIO
+     * =====================================================
+     */
+    const sessionUser =
+      await getAuthenticatedUser(req);
+
+    if (!sessionUser) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'No autenticado',
+        },
+        { status: 401 }
+      );
     }
 
-    if (!canAccess) {
+    const userId =
+      String(sessionUser.id);
+
+    /**
+     * =====================================================
+     * 📁 VALIDAR PARÁMETROS
+     * =====================================================
+     */
+    const {
+      id,
+      tareaId,
+    } = await params;
+
+    const proyectoId =
+      toProjectId(id);
+
+    if (
+      proyectoId == null ||
+      !tareaId
+    ) {
       return NextResponse.json(
         {
           ok: false,
           error:
-            modoAcceso === 'solicitud'
-              ? 'Requiere aprobación'
-              : 'Sin acceso a este proyecto',
-          canRequestAccess,
+            'Parámetros inválidos',
+        },
+        { status: 400 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 📋 VALIDAR TAREA
+     * =====================================================
+     */
+    const tareaRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            estado,
+            proyecto_id,
+            ultimo_rechazo_comentario
+          FROM tareas
+          WHERE id = ?
+            AND proyecto_id = ?
+          LIMIT 1
+        `,
+        args: [
+          String(tareaId),
+          proyectoId,
+        ],
+      });
+
+    const tareaRows =
+      castRows<TareaRow>(
+        tareaRes.rows
+      );
+
+    const tarea =
+      tareaRows[0];
+
+    if (!tarea) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Tarea no existe',
+        },
+        { status: 404 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 🔐 VALIDAR ACCESO AL PROYECTO
+     * =====================================================
+     */
+    const acceso =
+      await validarAccesoProyecto(
+        proyectoId,
+        userId
+      );
+
+    if (!acceso.proyecto) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Proyecto no existe',
+        },
+        { status: 404 }
+      );
+    }
+
+    if (
+      !acceso.esCreador &&
+      !acceso.esMiembro
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Sin acceso a los informes de esta tarea',
         },
         { status: 403 }
       );
     }
 
-    const tareaRes = await db.execute({
-      sql: `
-        SELECT id, estado
-        FROM tareas
-        WHERE id = ?
-          AND proyecto_id = ?
-        LIMIT 1
-      `,
-      args: [String(tareaId), proyectoId],
-    });
+    /**
+     * =====================================================
+     * 📄 OBTENER INFORMES
+     * =====================================================
+     */
+    const informesRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            tarea_id,
+            usuario_id,
+            tipo,
+            titulo,
+            descripcion,
+            url_archivo,
+            creado_en
+          FROM tarea_informes
+          WHERE tarea_id = ?
+          ORDER BY creado_en DESC
+        `,
+        args: [
+          String(tareaId),
+        ],
+      });
 
-    const tareaRows = castRows<TareaRow>(tareaRes.rows);
-    const tarea = tareaRows[0];
+    const informes =
+      castRows<InformeRow>(
+        informesRes.rows
+      ).map(
+        mapInforme
+      );
 
-    if (!tarea) {
+    /**
+     * =====================================================
+     * ✅ RESPUESTA
+     * =====================================================
+     */
+    return NextResponse.json(
+      {
+        ok: true,
+
+        informes,
+
+        meta: {
+          estado_tarea:
+            normalizeEstado(
+              tarea.estado
+            ),
+
+          comentario_revision:
+            tarea
+              .ultimo_rechazo_comentario ??
+            null,
+
+          es_creador:
+            acceso.esCreador,
+
+          es_miembro:
+            true,
+        },
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error(
+      'GET /api/proyectos/[id]/tareas/[tareaId]/informes error:',
+      error
+    );
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          'Error interno del servidor',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * =========================================================
+ * POST /api/proyectos/[id]/tareas/[tareaId]/informes
+ * =========================================================
+ *
+ * Permite subir:
+ *
+ * - informe de avance
+ * - informe final
+ *
+ * El usuario debe:
+ *
+ * - formar parte del proyecto
+ * - estar asignado activamente a la tarea
+ * - haber comenzado la tarea
+ *
+ * IMPORTANTE:
+ *
+ * Crear un informe final NO cambia automáticamente
+ * el estado de la tarea a review.
+ *
+ * /completar sigue siendo la ruta encargada de:
+ *
+ * in-progress → review
+ *
+ * y de detener el cronómetro.
+ */
+export async function POST(
+  req: NextRequest,
+  {
+    params,
+  }: {
+    params: Promise<{
+      id: string;
+      tareaId: string;
+    }>;
+  }
+) {
+  try {
+    /**
+     * =====================================================
+     * 🔐 VALIDAR USUARIO
+     * =====================================================
+     */
+    const sessionUser =
+      await getAuthenticatedUser(req);
+
+    if (!sessionUser) {
       return NextResponse.json(
-        { ok: false, error: 'Tarea no existe' },
+        {
+          ok: false,
+          error: 'No autenticado',
+        },
+        { status: 401 }
+      );
+    }
+
+    const userId =
+      String(sessionUser.id);
+
+    /**
+     * =====================================================
+     * 📁 VALIDAR PARÁMETROS
+     * =====================================================
+     */
+    const {
+      id,
+      tareaId,
+    } = await params;
+
+    const proyectoId =
+      toProjectId(id);
+
+    if (
+      proyectoId == null ||
+      !tareaId
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Parámetros inválidos',
+        },
+        { status: 400 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 📝 LEER INFORME
+     * =====================================================
+     */
+    const body =
+      await req
+        .json()
+        .catch(() => ({}));
+
+    const tipo =
+      normalizeTipoInforme(
+        body?.tipo
+      );
+
+    const titulo =
+      typeof body?.titulo === 'string'
+        ? body.titulo.trim()
+        : '';
+
+    const descripcion =
+      typeof body?.descripcion === 'string'
+        ? body.descripcion.trim()
+        : '';
+
+    const archivoUrl =
+      typeof body?.url_archivo === 'string' &&
+      body.url_archivo.trim()
+        ? body.url_archivo.trim()
+        : null;
+
+    /**
+     * =====================================================
+     * ✅ VALIDACIONES DEL INFORME
+     * =====================================================
+     */
+    if (!tipo) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'El tipo de informe es inválido',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!titulo) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'El título del informe es obligatorio',
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!descripcion) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'La descripción del informe es obligatoria',
+        },
+        { status: 400 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 🔐 VALIDAR PROYECTO
+     * =====================================================
+     */
+    const acceso =
+      await validarAccesoProyecto(
+        proyectoId,
+        userId
+      );
+
+    if (!acceso.proyecto) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Proyecto no existe',
+        },
         { status: 404 }
       );
     }
 
-    const estadoAnterior = normalizeEstado(tarea.estado);
-
-    if (estadoAnterior === 'completed') {
+    if (
+      !acceso.esCreador &&
+      !acceso.esMiembro
+    ) {
       return NextResponse.json(
-        { ok: false, error: 'No puedes cancelar una tarea completada' },
-        { status: 409 }
-      );
-    }
-
-    if (estadoAnterior === 'review') {
-      return NextResponse.json(
-        { ok: false, error: 'No puedes cancelar una tarea que está en review' },
-        { status: 409 }
-      );
-    }
-
-    const asigRes = await db.execute({
-      sql: `
-        SELECT id, iniciado_en, completado_en
-        FROM tarea_asignaciones
-        WHERE tarea_id = ?
-          AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-          AND estado = 'activo'
-        LIMIT 1
-      `,
-      args: [String(tareaId), userId],
-    });
-
-    const asigRows = castRows<AsignacionRow>(asigRes.rows);
-    const asig = asigRows[0];
-
-    if (!asig) {
-      return NextResponse.json(
-        { ok: false, error: 'No tienes una selección activa en esta tarea' },
+        {
+          ok: false,
+          error:
+            'Sin acceso a este proyecto',
+        },
         { status: 403 }
       );
     }
 
-    const registroRes = await db.execute({
-      sql: `
-        SELECT
-          id,
-          iniciado_en,
-          pausado_en,
-          detenido_en,
-          total_segundos,
-          estado
-        FROM registro_horas
-        WHERE tarea_id = ?
-          AND CAST(usuario_id AS TEXT) = CAST(? AS TEXT)
-          AND estado IN ('activo', 'pausado')
-        ORDER BY creado_en DESC
-        LIMIT 1
-      `,
-      args: [String(tareaId), userId],
-    });
-
-    const registroRows = castRows<RegistroHorasRow>(registroRes.rows);
-    const registro = registroRows[0];
-
-    if (registro) {
-      const registroEstado = String(registro.estado ?? '').toLowerCase().trim();
-      const totalActual = toNumber(registro.total_segundos);
-
-      if (registroEstado === 'activo' && registro.iniciado_en) {
-        const extra = diffSeconds(registro.iniciado_en, now);
-
-        await db.execute({
-          sql: `
-            UPDATE registro_horas
-            SET total_segundos = ?,
-                iniciado_en = NULL,
-                pausado_en = NULL,
-                detenido_en = ?,
-                estado = 'finalizado'
-            WHERE id = ?
-          `,
-          args: [totalActual + extra, now, String(registro.id)],
-        });
-      } else {
-        await db.execute({
-          sql: `
-            UPDATE registro_horas
-            SET iniciado_en = NULL,
-                pausado_en = NULL,
-                detenido_en = ?,
-                estado = 'finalizado'
-            WHERE id = ?
-          `,
-          args: [now, String(registro.id)],
-        });
-      }
-    }
-
-    try {
+    /**
+     * =====================================================
+     * 📋 VALIDAR TAREA
+     * =====================================================
+     */
+    const tareaRes =
       await db.execute({
         sql: `
-          UPDATE tarea_asignaciones
-          SET estado = 'cancelado',
-              cancelado_en = ?
+          SELECT
+            id,
+            estado,
+            proyecto_id,
+            ultimo_rechazo_comentario
+          FROM tareas
           WHERE id = ?
+            AND proyecto_id = ?
+          LIMIT 1
         `,
-        args: [now, String(asig.id)],
+        args: [
+          String(tareaId),
+          proyectoId,
+        ],
       });
-    } catch {
+
+    const tareaRows =
+      castRows<TareaRow>(
+        tareaRes.rows
+      );
+
+    const tarea =
+      tareaRows[0];
+
+    if (!tarea) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Tarea no existe',
+        },
+        { status: 404 }
+      );
+    }
+
+    const estadoTarea =
+      normalizeEstado(
+        tarea.estado
+      );
+
+    /**
+     * =====================================================
+     * 🔒 VALIDAR ESTADO
+     * =====================================================
+     */
+    if (
+      estadoTarea ===
+      'completed'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'No puedes crear informes para una tarea completada',
+        },
+        { status: 409 }
+      );
+    }
+
+    if (
+      estadoTarea === 'review'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'No puedes crear informes mientras la tarea está en revisión',
+        },
+        { status: 409 }
+      );
+    }
+
+    /**
+     * Una tarea en "todo" todavía no ha comenzado.
+     */
+    if (
+      estadoTarea !==
+      'in-progress'
+    ) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Debes comenzar la tarea antes de crear informes',
+        },
+        { status: 409 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * 👤 VALIDAR ASIGNACIÓN ACTIVA
+     * =====================================================
+     */
+    const asignacionRes =
       await db.execute({
         sql: `
-          UPDATE tarea_asignaciones
-          SET estado = 'cancelado'
-          WHERE id = ?
+          SELECT
+            id,
+            iniciado_en
+          FROM tarea_asignaciones
+          WHERE tarea_id = ?
+            AND CAST(usuario_id AS TEXT)
+              = CAST(? AS TEXT)
+            AND estado = 'activo'
+          LIMIT 1
         `,
-        args: [String(asig.id)],
+        args: [
+          String(tareaId),
+          userId,
+        ],
       });
+
+    const asignacion =
+      asignacionRes.rows?.[0] as
+        | {
+            id?: string;
+            iniciado_en?: string | null;
+          }
+        | undefined;
+
+    if (!asignacion) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'No estás asignado activamente a esta tarea',
+        },
+        { status: 403 }
+      );
     }
 
-    const trabajandoRes = await db.execute({
-      sql: `
-        SELECT COUNT(*) AS c
-        FROM tarea_asignaciones
-        WHERE tarea_id = ?
-          AND estado = 'activo'
-          AND iniciado_en IS NOT NULL
-          AND completado_en IS NULL
-      `,
-      args: [String(tareaId)],
-    });
-
-    const trabajandoRows = castRows<CountRow>(trabajandoRes.rows);
-    const trabajando = toNumber(trabajandoRows[0]?.c);
-
-    const activosRes = await db.execute({
-      sql: `
-        SELECT COUNT(*) AS c
-        FROM tarea_asignaciones
-        WHERE tarea_id = ?
-          AND estado = 'activo'
-      `,
-      args: [String(tareaId)],
-    });
-
-    const activosRows = castRows<CountRow>(activosRes.rows);
-    const activos = toNumber(activosRows[0]?.c);
-
-    let nuevoEstado: EstadoTarea = 'todo';
-
-    if (trabajando > 0) {
-      nuevoEstado = 'in-progress';
-    } else {
-      nuevoEstado = 'todo';
+    /**
+     * Además de seleccionarla, debe haber iniciado
+     * realmente el trabajo.
+     */
+    if (!asignacion.iniciado_en) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'Debes comenzar la tarea antes de crear informes',
+        },
+        { status: 409 }
+      );
     }
+
+    /**
+     * =====================================================
+     * ➕ CREAR INFORME
+     * =====================================================
+     */
+    const informeId =
+      randomUUID();
+
+    const now =
+      new Date().toISOString();
 
     await db.execute({
       sql: `
-        UPDATE tareas
-        SET estado = ?,
-            actualizado_en = ?
-        WHERE id = ?
+        INSERT INTO tarea_informes (
+          id,
+          tarea_id,
+          usuario_id,
+          tipo,
+          titulo,
+          descripcion,
+          url_archivo,
+          creado_en
+        )
+        VALUES (
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?
+        )
       `,
-      args: [nuevoEstado, now, String(tareaId)],
+      args: [
+        informeId,
+        String(tareaId),
+        userId,
+        tipo,
+        titulo,
+        descripcion,
+        archivoUrl,
+        now,
+      ],
     });
 
+    /**
+     * =====================================================
+     * 🧹 LIMPIAR COMENTARIO DE RECHAZO
+     * =====================================================
+     *
+     * Si el colaborador volvió a trabajar tras un rechazo
+     * y presenta un nuevo informe, eliminamos el comentario
+     * pendiente de la tarea.
+     *
+     * El historial conserva el rechazo anterior.
+     */
+    await db.execute({
+      sql: `
+        UPDATE tareas
+        SET
+          ultimo_rechazo_comentario = NULL,
+          actualizado_en = ?
+        WHERE id = ?
+          AND proyecto_id = ?
+      `,
+      args: [
+        now,
+        String(tareaId),
+        proyectoId,
+      ],
+    });
+
+    /**
+     * =====================================================
+     * 📜 HISTORIAL
+     * =====================================================
+     */
     try {
       await db.execute({
         sql: `
@@ -393,63 +920,124 @@ export async function POST(
             comentario,
             creado_en
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          VALUES (
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?
+          )
         `,
         args: [
           randomUUID(),
           String(tareaId),
           userId,
-          estadoAnterior,
-          nuevoEstado,
-          'Canceló selección',
+          estadoTarea,
+          estadoTarea,
+          tipo === 'final'
+            ? 'Subió informe final'
+            : 'Subió informe de avance',
           now,
         ],
       });
-    } catch (e) {
-      console.error('Historial fallo (no crítico):', e);
+    } catch (error) {
+      console.warn(
+        'No se pudo insertar en tarea_historial:',
+        error
+      );
     }
 
-    const asignadosRes = await db.execute({
-      sql: `
-        SELECT
-          u.id,
-          u.nombre,
-          u.apellido,
-          u.email,
-          COALESCE(ta.seleccionado_en, ta.creado_en) AS seleccionada_at,
-          ta.iniciado_en,
-          ta.completado_en
-        FROM tarea_asignaciones ta
-        JOIN usuarios u
-          ON CAST(u.id AS TEXT) = CAST(ta.usuario_id AS TEXT)
-        WHERE ta.tarea_id = ?
-          AND ta.estado = 'activo'
-        ORDER BY ta.creado_en ASC
-      `,
-      args: [String(tareaId)],
-    });
+    /**
+     * =====================================================
+     * 🔎 RECARGAR INFORME
+     * =====================================================
+     */
+    const informeRes =
+      await db.execute({
+        sql: `
+          SELECT
+            id,
+            tarea_id,
+            usuario_id,
+            tipo,
+            titulo,
+            descripcion,
+            url_archivo,
+            creado_en
+          FROM tarea_informes
+          WHERE id = ?
+          LIMIT 1
+        `,
+        args: [
+          informeId,
+        ],
+      });
 
-    const payload = {
-      asignados: asignadosRes.rows ?? [],
-      activos,
-      trabajando,
-      estado: nuevoEstado,
-      cancelado_en: now,
-    };
+    const informeRows =
+      castRows<InformeRow>(
+        informeRes.rows
+      );
 
+    const informe =
+      informeRows[0]
+        ? mapInforme(
+            informeRows[0]
+          )
+        : null;
+
+    if (!informe) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            'El informe fue guardado, pero no pudo recargarse',
+        },
+        { status: 500 }
+      );
+    }
+
+    /**
+     * =====================================================
+     * ✅ RESPUESTA
+     * =====================================================
+     */
     return NextResponse.json(
       {
         ok: true,
-        data: payload,
-        ...payload,
+
+        message:
+          'Informe guardado correctamente',
+
+        data: {
+          informe,
+        },
+
+        informe,
+
+        meta: {
+          estado_tarea:
+            estadoTarea,
+
+          requiere_envio_revision:
+            tipo === 'final',
+        },
       },
-      { status: 200 }
+      { status: 201 }
     );
-  } catch (err) {
-    console.error('POST cancelar error:', err);
+  } catch (error) {
+    console.error(
+      'POST /api/proyectos/[id]/tareas/[tareaId]/informes error:',
+      error
+    );
 
     return NextResponse.json(
-      { ok: false, error: 'Error interno del servidor' },
+      {
+        ok: false,
+        error:
+          'Error interno del servidor',
+      },
       { status: 500 }
     );
   }
